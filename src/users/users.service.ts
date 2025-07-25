@@ -30,7 +30,7 @@ export class UsersService {
   async findByEmailWithPassword(email: string): Promise<User | undefined> {
     return this.usersRepo.findOne({
       where: { email },
-      select: ['id', 'email', 'password'], // explicitly select password
+      select: ['id', 'fullName', 'email', 'password'], // explicitly select password
       relations: ['role'],
     });
   }

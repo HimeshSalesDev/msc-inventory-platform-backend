@@ -44,7 +44,12 @@ export class AuthService {
       throw new BadRequestException('Use mobile login');
     const token = this.getToken(user.id, user.email, user.role.name);
     return {
-      user: { id: user.id, email: user.email, role: user.role.name },
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role.name,
+      },
       token,
     };
   }
