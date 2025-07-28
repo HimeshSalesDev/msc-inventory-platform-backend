@@ -26,14 +26,19 @@ export class AuthService {
     return user;
   }
 
-  private getToken(userId: string, email: string, role: string): string {
+  private getToken(
+    userId: string,
+    email: string,
+    role: string,
+    fullName: string,
+  ): string {
     const secret = this.configService.get<string>('JWT_SECRET');
     if (!secret) {
       throw new Error('JWT_SECRET not configured');
     }
 
     return this.jwtService.sign(
-      { sub: userId, username: email, role },
+      { id: userId, email, role, fullName },
       { secret, expiresIn: '7d' },
     );
   }
@@ -42,7 +47,12 @@ export class AuthService {
     const user = await this.validateUser(dto.email, dto.password);
     if (user.role.name === UserRole.MOBILE_APP.toString())
       throw new BadRequestException('Use mobile login');
-    const token = this.getToken(user.id, user.email, user.role.name);
+    const token = this.getToken(
+      user.id,
+      user.email,
+      user.role.name,
+      user.fullName,
+    );
     return {
       user: {
         id: user.id,
@@ -58,9 +68,19 @@ export class AuthService {
     const user = await this.validateUser(dto.email, dto.password);
     if (user.role.name !== UserRole.MOBILE_APP.toString())
       throw new BadRequestException('Not a mobile user');
-    const token = this.getToken(user.id, user.email, user.role.name);
+    const token = this.getToken(
+      user.id,
+      user.email,
+      user.role.name,
+      user.fullName,
+    );
     return {
-      user: { id: user.id, email: user.email, role: user.role.name },
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role.name,
+      },
       token,
     };
   }
@@ -72,9 +92,19 @@ export class AuthService {
       });
       const user = await this.usersService.findByEmail(payload.username);
       if (!user) throw new UnauthorizedException();
-      const newToken = this.getToken(user.id, user.email, user.role.name);
+      const newToken = this.getToken(
+        user.id,
+        user.email,
+        user.role.name,
+        user.fullName,
+      );
       return {
-        user: { id: user.id, email: user.email, role: user.role.name },
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role.name,
+        },
         token: newToken,
       };
     } catch (e) {
