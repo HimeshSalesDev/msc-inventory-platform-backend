@@ -24,15 +24,25 @@ export class UsersService {
 
   // Existing methods...
   async findByEmail(email: string): Promise<User | null> {
+    const trimmedEmail = email?.trim();
+    if (!trimmedEmail) {
+      return null;
+    }
+
     return this.usersRepository.findOne({
-      where: { email },
+      where: { email: trimmedEmail },
       relations: ['role'],
     });
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
+    const trimmedEmail = email?.trim();
+    if (!trimmedEmail) {
+      return null;
+    }
+
     return this.usersRepository.findOne({
-      where: { email },
+      where: { email: trimmedEmail },
       relations: ['role'],
       select: ['id', 'email', 'password', 'fullName', 'role'],
     });
