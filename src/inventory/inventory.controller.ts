@@ -46,7 +46,7 @@ export class InventoryController {
   constructor(private inventoryService: InventoryService) {}
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.INVENTORY_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.INVENTORY_MANAGER, UserRole.MOBILE_APP)
   @ApiOperation({ summary: 'Get all inventory items with optional filtering' })
   @ApiOkResponse({
     type: [Inventory],
