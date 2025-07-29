@@ -19,9 +19,11 @@ import {
   IMPORT_NUMERIC_FIELDS,
   INBOUND_CSV_FILE_COLUMNS,
   INBOUND_CSV_TO_PRISMA_INVENTORY_MAP,
+  INBOUND_DATE_FIELDS,
   PREVIEW_NUMERIC_FIELDS,
   REQUIRED_FIELDS,
 } from 'src/constants/csv';
+import { formatDateToYMD } from 'src/lib/dateHelper';
 
 @Injectable()
 export class InboundService {
@@ -180,6 +182,18 @@ export class InboundService {
               }
             }
 
+            // === DATE FORMATTING ===
+            for (const field of INBOUND_DATE_FIELDS) {
+              const actualKey = Object.keys(row).find(
+                (col) => normalizeKey(col) === normalizeKey(field),
+              );
+
+              if (actualKey && row[actualKey]) {
+                const formatted = formatDateToYMD(row[actualKey]);
+                row[actualKey] = formatted ?? null;
+              }
+            }
+
             if (errors.length > 0) {
               validationErrors.push({ row: index + 1, errors });
             }
@@ -263,7 +277,6 @@ export class InboundService {
 
         successfulImports.push(result);
       } catch (error) {
-        console.log({ error });
         this.logger.error(`Error importing row ${row._rowIndex}`, {
           error,
           row,
