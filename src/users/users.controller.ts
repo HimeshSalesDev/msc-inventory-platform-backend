@@ -45,7 +45,6 @@ export class UsersController {
     description: 'Forbidden - Admin role required',
   })
   async findAll(@Request() req): Promise<{ users: UserEntity[] }> {
-    console.log('sd', req.user);
     const users = await this.usersService.findAll(req.user.id);
     return { users };
   }
