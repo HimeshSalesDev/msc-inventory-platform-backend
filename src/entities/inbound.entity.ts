@@ -84,36 +84,36 @@ export class Inbound {
 
   @ApiProperty({
     description:
-      'Length measurement (up to 7 digits before decimal, 6 decimal places)',
-    example: 1234.56789,
+      'Length measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 123.456,
   })
-  @Column({ type: 'decimal', precision: 13, scale: 6 })
+  @Column({ type: 'decimal', precision: 6, scale: 3 })
   length: number;
 
   @ApiProperty({
     description:
-      'Width measurement (up to 7 digits before decimal, 6 decimal places)',
-    example: 123.456789,
+      'Width measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 45.789,
     required: false,
   })
-  @Column({ type: 'decimal', precision: 13, scale: 6, nullable: true })
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
   width?: number;
 
   @ApiProperty({
     description:
-      'Radius measurement (up to 7 digits before decimal, 6 decimal places)',
-    example: 12.345678,
+      'Radius measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 67.321,
     required: false,
   })
-  @Column({ type: 'decimal', precision: 13, scale: 6, nullable: true })
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
   radius?: number;
 
   @ApiProperty({
     description:
-      'Skirt measurement (up to 7 digits before decimal, 6 decimal places)',
-    example: 5.123456,
+      'Skirt measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 89.123,
   })
-  @Column({ type: 'decimal', precision: 13, scale: 6 })
+  @Column({ type: 'decimal', precision: 6, scale: 3 })
   skirt: number;
 
   @ApiProperty({
@@ -126,10 +126,10 @@ export class Inbound {
 
   @ApiProperty({
     description:
-      'Foam density measurement (up to 7 digits before decimal, 6 decimal places)',
-    example: 25.123456,
+      'Foam density (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 25.123,
   })
-  @Column({ type: 'decimal', precision: 13, scale: 6 })
+  @Column({ type: 'decimal', precision: 6, scale: 3 })
   foamDensity: number;
 
   @ApiProperty({

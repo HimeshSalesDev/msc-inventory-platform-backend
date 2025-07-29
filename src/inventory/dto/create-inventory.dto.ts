@@ -11,7 +11,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
-const MAX_DECIMAL = 999999.999999;
+const MAX_DECIMAL = 999.999;
 
 export class CreateInventoryDto {
   @ApiProperty({
@@ -34,44 +34,56 @@ export class CreateInventoryDto {
   vendorDescription?: string;
 
   @ApiProperty({
-    description: 'Length (decimal, max 6 decimal places)',
-    example: 123456.123456,
+    description: 'Length (max value: 999.999, up to 3 decimal places)',
+    example: 123.456,
     minimum: 0,
     maximum: MAX_DECIMAL,
   })
-  @IsNumber({ maxDecimalPlaces: 6 })
+  @IsNumber(
+    { maxDecimalPlaces: 3 },
+    { message: 'Length must be a number with up to 3 decimal places only' },
+  )
   @Min(0)
   @Max(MAX_DECIMAL)
   @Type(() => Number)
   length: number;
 
   @ApiPropertyOptional({
-    description: 'Width (decimal, max 6 decimal places)',
-    example: 12345.123456,
+    description: 'Width (max value: 999.999, up to 3 decimal places)',
+    example: 45.789,
   })
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 6 })
+  @IsNumber(
+    { maxDecimalPlaces: 3 },
+    { message: 'Width must be a number with up to 3 decimal places only' },
+  )
   @Min(0)
   @Max(MAX_DECIMAL)
   @Type(() => Number)
   width?: number;
 
   @ApiPropertyOptional({
-    description: 'Radius (decimal, max 6 decimal places)',
-    example: 54321.123456,
+    description: 'Radius (max value: 999.999, up to 3 decimal places)',
+    example: 67.321,
   })
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 6 })
+  @IsNumber(
+    { maxDecimalPlaces: 3 },
+    { message: 'Radius must be a number with up to 3 decimal places only' },
+  )
   @Min(0)
   @Max(MAX_DECIMAL)
   @Type(() => Number)
   radius?: number;
 
   @ApiProperty({
-    description: 'Skirt (decimal, max 6 decimal places)',
-    example: 9999.999999,
+    description: 'Skirt (max value: 999.999, up to 3 decimal places)',
+    example: 89.123,
   })
-  @IsNumber({ maxDecimalPlaces: 6 })
+  @IsNumber(
+    { maxDecimalPlaces: 3 },
+    { message: 'Skirt must be a number with up to 3 decimal places only' },
+  )
   @Min(0)
   @Max(MAX_DECIMAL)
   @Type(() => Number)
@@ -88,10 +100,15 @@ export class CreateInventoryDto {
   taper?: string;
 
   @ApiProperty({
-    description: 'Foam density (decimal, max 6 decimal places)',
-    example: 12.345678,
+    description: 'Foam density (max value: 999.999, up to 3 decimal places)',
+    example: 25.123,
   })
-  @IsNumber({ maxDecimalPlaces: 6 })
+  @IsNumber(
+    { maxDecimalPlaces: 3 },
+    {
+      message: 'Foam density must be a number with up to 3 decimal places only',
+    },
+  )
   @Min(0)
   @Max(MAX_DECIMAL)
   @Type(() => Number)
