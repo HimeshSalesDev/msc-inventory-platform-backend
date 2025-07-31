@@ -10,6 +10,7 @@ import { User } from '../entities/user.entity';
 import { Role } from '../entities/role.entity';
 import { ConfigModule } from '@nestjs/config';
 import { JwtConfigModule } from './jwt.module';
+import { AuditLogModule } from 'src/audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { JwtConfigModule } from './jwt.module';
     JwtConfigModule,
     TypeOrmModule.forFeature([User, Role]),
     UsersModule,
+    AuditLogModule,
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],

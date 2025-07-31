@@ -10,6 +10,7 @@ import { PassportModule } from '@nestjs/passport';
 import { InventoryModule } from './inventory/inventory.module';
 import { InboundModule } from './inbound/inbound.module';
 import { InventoryLocationModule } from './inventory_location/inventory_location.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { InventoryLocationModule } from './inventory_location/inventory_location
     InventoryModule,
     InventoryLocationModule,
     InboundModule,
+    AuditLogModule,
   ],
   controllers: [AppController],
   providers: [AppService],

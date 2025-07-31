@@ -9,6 +9,7 @@ import { UserRole } from '../enums/roles.enum';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { ConfigService } from '@nestjs/config';
+import { AuditLogService } from 'src/audit-log/audit-log.service';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +17,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   private async validateUser(email: string, pass: string) {
@@ -43,16 +45,27 @@ export class AuthService {
     );
   }
 
-  async loginWeb(dto: LoginDto) {
+  async loginWeb(dto: LoginDto, req: any) {
     const user = await this.validateUser(dto.email, dto.password);
     if (user.role.name === UserRole.MOBILE_APP.toString())
       throw new BadRequestException('Use mobile login');
+
     const token = this.getToken(
       user.id,
       user.email,
       user.role.name,
       user.fullName,
     );
+
+    if (user.id) {
+      await this.auditLogService.logLogin(
+        user.id,
+        user.fullName,
+        req?.ip,
+        req?.get('User-Agent'),
+      );
+    }
+
     return {
       user: {
         id: user.id,
@@ -64,7 +77,7 @@ export class AuthService {
     };
   }
 
-  async loginMobile(dto: LoginDto) {
+  async loginMobile(dto: LoginDto, req: any) {
     const user = await this.validateUser(dto.email, dto.password);
     if (user.role.name !== UserRole.MOBILE_APP.toString())
       throw new BadRequestException('Not a mobile user');
@@ -74,6 +87,16 @@ export class AuthService {
       user.role.name,
       user.fullName,
     );
+
+    if (user.id) {
+      await this.auditLogService.logLogin(
+        user.id,
+        user.fullName,
+        req?.ip,
+        req?.get('User-Agent'),
+      );
+    }
+
     return {
       user: {
         id: user.id,
