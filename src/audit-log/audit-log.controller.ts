@@ -1,0 +1,52 @@
+import {
+  Controller,
+  Get,
+  Query,
+  HttpStatus,
+  HttpCode,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiOkResponse,
+} from '@nestjs/swagger';
+
+import { AuditLogService } from './audit-log.service';
+
+import { QueryAuditLogsDto } from './dto/query-audit-log.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { UserRole } from 'src/enums/roles.enum';
+import { PaginatedAuditLogResponseDto } from './dto/create-audit-log.dto';
+
+@ApiTags('audit-log')
+@Controller('audit-log')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
+export class AuditLogController {
+  constructor(private readonly auditLogService: AuditLogService) {}
+
+  @Get()
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get all audit logs with pagination and filtering' })
+  @ApiOkResponse({
+    type: PaginatedAuditLogResponseDto,
+    description: 'Audit logs retrieved successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin  role required',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Failed to fetch logs',
+  })
+  async findAll(@Query() queryDto: QueryAuditLogsDto) {
+    return await this.auditLogService.findAll(queryDto);
+  }
+}

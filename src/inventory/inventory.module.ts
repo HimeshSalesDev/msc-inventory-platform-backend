@@ -9,6 +9,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Role } from 'src/entities/role.entity';
 import { UsersModule } from 'src/users/users.module';
+import { AuditLogModule } from 'src/audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { UsersModule } from 'src/users/users.module';
     JwtConfigModule,
     ConfigModule,
     UsersModule,
+    AuditLogModule,
   ],
   controllers: [InventoryController],
   providers: [InventoryService, JwtAuthGuard, RolesGuard],

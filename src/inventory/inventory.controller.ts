@@ -143,13 +143,14 @@ export class InventoryController {
   })
   async update(
     @Body() updateInventoryDto: UpdateInventoryDto,
+    @Request() req: Request,
   ): Promise<Inventory> {
     try {
       if (!updateInventoryDto.id) {
         throw new BadRequestException('Id is required');
       }
 
-      return await this.inventoryService.update(updateInventoryDto);
+      return await this.inventoryService.update(updateInventoryDto, req);
     } catch (error) {
       if (
         error instanceof BadRequestException ||
