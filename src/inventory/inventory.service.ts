@@ -194,14 +194,17 @@ export class InventoryService {
 
     // Log inventory update with before/after data
     if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+      };
       await this.auditLogService.logInventoryUpdate(
-        req.user.id,
-        req.user.fullName,
+        requestContext,
         existing,
         updatedInventory,
         id,
-        req?.ip,
-        req?.get('User-Agent'),
       );
     }
     return updated;

@@ -17,6 +17,7 @@ import { InventoryLocationResponseDto } from './dto/inventory-location-response.
 import { InventoryLocation } from 'src/entities/inventory_location.entity';
 import { Inventory } from 'src/entities/inventory.entity';
 import { parseSKU, validateSKU } from 'src/lib/sku.util';
+import { AuditLogService } from 'src/audit-log/audit-log.service';
 
 type TotalQuantityResult = {
   total: string | null;
@@ -41,10 +42,13 @@ export class InventoryLocationService {
     @InjectRepository(Inventory)
     private readonly inventoryRepository: Repository<Inventory>,
     private readonly dataSource: DataSource,
+
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async create(
     createDto: CreateInventoryLocationDto,
+    req: any,
   ): Promise<InventoryLocationResponseDto> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -54,6 +58,7 @@ export class InventoryLocationService {
       const result = await this.createOrUpdateInventoryLocation(
         queryRunner,
         createDto,
+        req,
       );
       await queryRunner.commitTransaction();
       return result;
@@ -415,8 +420,14 @@ export class InventoryLocationService {
   private async createOrUpdateInventoryLocation(
     queryRunner: QueryRunner,
     createDto: CreateInventoryLocationDto,
+    req: any,
   ): Promise<InventoryLocationResponseDto> {
     const { sku, binNumber, location, quantity } = createDto;
+
+    let isNewInventory = false;
+    let isNewLocation = false;
+    let originalInventoryData: Inventory = null;
+    let originalLocationData: InventoryLocation = null;
 
     // Find or create inventory with lock
     let inventory = await queryRunner.manager.findOne(Inventory, {
@@ -446,6 +457,10 @@ export class InventoryLocationService {
         materialColor: productInfo.colorName,
       });
       inventory = await queryRunner.manager.save(Inventory, inventory);
+      isNewInventory = true;
+    } else {
+      // Store original inventory data for audit
+      originalInventoryData = { ...inventory };
     }
 
     // Check if location already exists for this inventory and bin
@@ -464,6 +479,9 @@ export class InventoryLocationService {
     let inventoryLocation: InventoryLocation;
 
     if (existingLocation) {
+      // Store original location data for audit
+      originalLocationData = { ...existingLocation };
+
       // Update existing location - add quantities
       const oldQuantity = BigInt(existingLocation.quantity);
       const addQuantity = BigInt(quantity);
@@ -489,6 +507,7 @@ export class InventoryLocationService {
         InventoryLocation,
         inventoryLocation,
       );
+      isNewLocation = true;
     }
 
     // Calculate total quantity across all locations for this inventory
@@ -502,6 +521,69 @@ export class InventoryLocationService {
     await queryRunner.manager.update(Inventory, inventory.id, {
       quantity: totalQuantity,
     });
+
+    // Get updated inventory for audit
+    const updatedInventory = await queryRunner.manager.findOne(Inventory, {
+      where: { id: inventory.id },
+    });
+
+    // Audit logging after successful transaction
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+      };
+      try {
+        // Log inventory location operation
+        if (isNewLocation) {
+          await this.auditLogService.logInventoryLocationCreate(
+            requestContext,
+            {
+              ...inventoryLocation,
+              sku: sku,
+            },
+            inventoryLocation.id,
+          );
+        } else {
+          await this.auditLogService.logInventoryLocationUpdate(
+            requestContext,
+            {
+              ...originalLocationData,
+              sku: sku,
+            },
+            {
+              ...inventoryLocation,
+              sku: sku,
+            },
+            inventoryLocation.id,
+          );
+        }
+
+        // Log inventory operation
+        if (isNewInventory) {
+          await this.auditLogService.logInventoryCreate(
+            requestContext,
+            updatedInventory,
+            inventory.id,
+          );
+        } else {
+          // Only log inventory update if quantity actually changed
+          if (originalInventoryData.quantity !== updatedInventory.quantity) {
+            await this.auditLogService.logInventoryUpdate(
+              requestContext,
+              originalInventoryData,
+              updatedInventory,
+              inventory.id,
+            );
+          }
+        }
+      } catch (auditError) {
+        // Log audit errors but don't fail the main operation
+        this.logger.error('Error creating audit logs:', auditError);
+      }
+    }
 
     return InventoryLocationResponseDto.fromEntity(
       inventoryLocation,

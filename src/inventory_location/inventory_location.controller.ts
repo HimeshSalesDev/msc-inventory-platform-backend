@@ -12,6 +12,7 @@ import {
   UsePipes,
   ParseUUIDPipe,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -102,9 +103,13 @@ export class InventoryLocationController {
     },
   })
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async create(@Body() createInventoryLocationDto: CreateInventoryLocationDto) {
+  async create(
+    @Body() createInventoryLocationDto: CreateInventoryLocationDto,
+    @Request() req: Request,
+  ) {
     return await this.inventoryLocationService.create(
       createInventoryLocationDto,
+      req,
     );
   }
 

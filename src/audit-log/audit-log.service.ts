@@ -27,6 +27,13 @@ interface ComparisonResult {
   newData: Record<string, any>;
 }
 
+interface RequestContext {
+  userId: string;
+  userName: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
 @Injectable()
 export class AuditLogService {
   private readonly logger = new Logger(AuditLogService.name);
@@ -112,7 +119,7 @@ export class AuditLogService {
       const entityInfo = entityName ?? '';
       const entityIdInfo =
         entityId || (prevData && prevData[key]) || descriptionId;
-      const description = `User ${userName} ${action}${entityInfo}${entityIdInfo ? ` (ID: ${entityIdInfo})` : ''}`;
+      const description = `User ${userName} ${action} ${entityInfo}${entityIdInfo ? ` (ID: ${entityIdInfo})` : ''}`;
 
       if (
         isLogWithoutData ||
@@ -155,7 +162,9 @@ export class AuditLogService {
         }
       } else if (
         updatedData &&
-        (type === AuditLogType.ADD_INVENTORY || type.includes('create'))
+        (type === AuditLogType.ADD_INVENTORY ||
+          type === AuditLogType.ADD_INVENTORY_LOCATION ||
+          type === AuditLogType.CREATE_USER)
       ) {
         // For create operations, only store new data
         await this.auditLogRepository.save({
@@ -195,46 +204,40 @@ export class AuditLogService {
 
   // Inventory operations
   async logInventoryCreate(
-    userId: string,
-    userName: string,
+    context: RequestContext,
     inventoryData: Record<string, any>,
     inventoryId: string,
-    ipAddress?: string,
-    userAgent?: string,
   ): Promise<void> {
     await this.createAuditLog({
-      userId,
-      userName,
+      userId: context.userId,
+      userName: context.userName,
       type: AuditLogType.ADD_INVENTORY,
       updatedData: inventoryData,
       entityName: 'inventory',
       entityId: inventoryId,
       action: 'created',
-      ipAddress,
-      userAgent,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
     });
   }
 
   async logInventoryUpdate(
-    userId: string,
-    userName: string,
+    context: RequestContext,
     prevData: Record<string, any>,
     updatedData: Record<string, any>,
     inventoryId: string,
-    ipAddress?: string,
-    userAgent?: string,
   ): Promise<void> {
     await this.createAuditLog({
-      userId,
-      userName,
+      userId: context.userId,
+      userName: context.userName,
       type: AuditLogType.UPDATE_INVENTORY,
       prevData,
       updatedData,
       entityName: 'inventory',
       entityId: inventoryId,
       action: 'updated',
-      ipAddress,
-      userAgent,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
     });
   }
 
@@ -257,6 +260,47 @@ export class AuditLogService {
       isLogWithoutData: false,
       ipAddress,
       userAgent,
+    });
+  }
+
+  // Log inventory location creation
+  async logInventoryLocationCreate(
+    context: RequestContext,
+    createdData: Record<string, any>,
+    inventoryLocationId: string,
+  ): Promise<void> {
+    await this.createAuditLog({
+      userId: context.userId,
+      userName: context.userName,
+      type: AuditLogType.ADD_INVENTORY_LOCATION,
+      prevData: null,
+      updatedData: createdData,
+      entityName: 'inventory_location',
+      entityId: inventoryLocationId,
+      action: 'created',
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+    });
+  }
+
+  // Log inventory location update
+  async logInventoryLocationUpdate(
+    context: RequestContext,
+    prevData: Record<string, any>,
+    updatedData: Record<string, any>,
+    inventoryLocationId: string,
+  ): Promise<void> {
+    await this.createAuditLog({
+      userId: context.userId,
+      userName: context.userName,
+      type: AuditLogType.UPDATE_INVENTORY_LOCATION,
+      prevData,
+      updatedData,
+      entityName: 'inventory_location',
+      entityId: inventoryLocationId,
+      action: 'updated',
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
     });
   }
 
