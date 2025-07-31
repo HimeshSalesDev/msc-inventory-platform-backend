@@ -11,7 +11,9 @@ describe('InventoryLocationController', () => {
       providers: [InventoryLocationService],
     }).compile();
 
-    controller = module.get<InventoryLocationController>(InventoryLocationController);
+    controller = module.get<InventoryLocationController>(
+      InventoryLocationController,
+    );
   });
 
   it('should be defined', () => {

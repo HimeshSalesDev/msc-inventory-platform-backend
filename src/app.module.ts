@@ -8,6 +8,7 @@ import { AppDataSource } from '../data-source';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { InventoryModule } from './inventory/inventory.module';
+import { InboundModule } from './inbound/inbound.module';
 import { InventoryLocationModule } from './inventory_location/inventory_location.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { InventoryLocationModule } from './inventory_location/inventory_location
     AuthModule,
     InventoryModule,
     InventoryLocationModule,
+    InboundModule,
   ],
   controllers: [AppController],
   providers: [AppService],

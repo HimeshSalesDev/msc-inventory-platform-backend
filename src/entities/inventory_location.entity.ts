@@ -12,9 +12,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Inventory } from './inventory.entity';
 
 @Entity('inventory_locations')
-@Index('idx_inventory_location_unique', ['inventoryId', 'binNumber'], {
-  unique: true,
-})
+@Index('idx_inventory_location_inventory_bin', ['inventoryId', 'binNumber'])
 @Index('idx_inventory_location_composite', ['inventoryId', 'location'])
 export class InventoryLocation {
   @ApiProperty({

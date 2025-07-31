@@ -70,18 +70,18 @@ export class QueryInventoryDto {
     minimum: 0,
   })
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 6 })
+  @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
   @Type(() => Number)
   minLength?: number;
 
   @ApiPropertyOptional({
     description: 'Maximum length filter (supports very large decimal values)',
-    example: 100000.5,
+    example: 1000.5,
     minimum: 0,
   })
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 6 })
+  @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
   @Type(() => Number)
   maxLength?: number;

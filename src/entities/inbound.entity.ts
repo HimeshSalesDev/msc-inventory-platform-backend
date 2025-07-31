@@ -8,21 +8,70 @@ import {
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 
-@Entity('inventory')
-export class Inventory {
+@Entity('inbound')
+export class Inbound {
   @ApiProperty({
-    description: 'Unique identifier for the inventory item',
+    description: 'Unique identifier for the inbound record',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @ApiProperty({
+    description: 'Purchase Order number',
+    example: 'PO-2024-001',
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  poNumber?: string;
+
+  @ApiProperty({
+    description: 'Container number for shipping',
+    example: 'CONT-12345678',
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  containerNumber?: string;
+
+  @ApiProperty({
+    description: 'Estimated Time of Departure',
+    example: '2024-01-20T00:00:00.000Z',
+    required: false,
+  })
+  @Column({ type: 'date', nullable: true })
+  etd?: Date;
+
+  @ApiProperty({
+    description: 'Estimated Time of Arrival',
+    example: '2024-02-15T00:00:00.000Z',
+    required: false,
+  })
+  @Column({ type: 'date', nullable: true })
+  eta?: Date;
+
+  @ApiProperty({
+    description: 'Shipped status or date',
+    example: '2024-01-21',
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  shipped?: string;
+
+  @ApiProperty({
+    description: 'Date when goods were offloaded',
+    example: '2024-02-16T00:00:00.000Z',
+    required: false,
+  })
+  @Column({ type: 'date', nullable: true })
+  offloadedDate?: Date;
+
+  // Include all inventory fields
+  @ApiProperty({
     description: 'Stock Keeping Unit - unique identifier for the product',
     example: 'SKU-001',
   })
-  @Column({ type: 'varchar', length: 255, unique: true })
-  @Index('idx_inventory_sku', { unique: true })
+  @Column({ type: 'varchar', length: 255 })
+  @Index('idx_inbound_sku')
   sku: string;
 
   @ApiProperty({
@@ -125,30 +174,12 @@ export class Inventory {
 
   @ApiProperty({
     description:
-      'Total quantity available (supports very large values up to bigint limit)',
+      'Inbound quantity (supports very large values up to bigint limit)',
     example: 1000000,
     required: false,
   })
   @Column({ type: 'bigint', nullable: true })
   quantity?: string; // Use string here to safely store bigints
-
-  @ApiProperty({
-    description:
-      'Quantity that has been allocated (supports very large values up to bigint limit)',
-    example: 250000,
-    required: false,
-  })
-  @Column({ type: 'bigint', nullable: true })
-  allocatedQuantity?: string; // Use string here to safely store bigints
-
-  @ApiProperty({
-    description:
-      'Quantity currently in hand (supports very large values up to bigint limit)',
-    example: 750000,
-    required: false,
-  })
-  @Column({ type: 'bigint', nullable: true })
-  inHandQuantity?: string; // Use string here to safely store bigints
 
   @ApiProperty({
     description: 'Date when the record was created',

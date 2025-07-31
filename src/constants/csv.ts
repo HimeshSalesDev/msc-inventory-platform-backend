@@ -60,10 +60,12 @@ export const INBOUND_CSV_FILE_COLUMNS = [
 
 export const INBOUND_CSV_TO_PRISMA_INVENTORY_MAP = {
   ...CSV_TO_PRISMA_INVENTORY_MAP,
-  'PO No': 'po_number',
-  'Container No': 'container_number',
+  'PO No': 'poNumber',
+  'Container No': 'containerNumber',
   ETD: 'etd',
   ETA: 'eta',
   Shipped: 'shipped',
-  'Offloaded Date': 'offloaded_date',
+  'Offloaded Date': 'offloadedDate',
 };
+
+export const INBOUND_DATE_FIELDS = ['ETD', 'ETA', 'Offloaded Date'];

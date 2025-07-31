@@ -90,7 +90,7 @@ export class AuthService {
       const payload = this.jwtService.verify(token, {
         secret: process.env.JWT_SECRET,
       });
-      const user = await this.usersService.findByEmail(payload.username);
+      const user = await this.usersService.findById(payload.id);
       if (!user) throw new UnauthorizedException();
       const newToken = this.getToken(
         user.id,

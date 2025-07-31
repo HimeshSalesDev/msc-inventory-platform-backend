@@ -6,11 +6,6 @@ async function seedRoles() {
   await AppDataSource.initialize();
   console.log('DataSource initialized');
 
-  console.log(
-    'Loaded entities:',
-    AppDataSource.entityMetadatas.map((e) => e.name),
-  );
-
   const roleRepo = AppDataSource.getRepository(Role);
 
   const roles = Object.values(UserRole);
@@ -20,7 +15,6 @@ async function seedRoles() {
     if (!exists) {
       const role = roleRepo.create({ name });
       await roleRepo.save(role);
-      console.log(`Inserted role: ${name}`);
     } else {
       console.log(`Role already exists: ${name}`);
     }

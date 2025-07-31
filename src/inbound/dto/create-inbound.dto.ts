@@ -7,13 +7,73 @@ import {
   Min,
   Max,
   Matches,
+  IsDateString,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 const MAX_DECIMAL = 999.999;
 
-export class CreateInventoryDto {
+export class CreateInboundDto {
+  // Inbound-specific fields
+  @ApiPropertyOptional({
+    description: 'Purchase Order number',
+    example: 'PO-2024-001',
+    maxLength: 255,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(0, 255)
+  poNumber?: string;
+
+  @ApiPropertyOptional({
+    description: 'Container number for shipping',
+    example: 'CONT-12345678',
+    maxLength: 255,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(0, 255)
+  containerNumber?: string;
+
+  @ApiPropertyOptional({
+    description: 'Estimated Time of Departure (ISO date string)',
+    example: '2024-01-20',
+  })
+  @IsOptional()
+  @IsDateString({}, { message: 'ETD must be a valid ISO date string' })
+  etd?: string;
+
+  @ApiPropertyOptional({
+    description: 'Estimated Time of Arrival (ISO date string)',
+    example: '2024-02-15',
+  })
+  @IsOptional()
+  @IsDateString({}, { message: 'ETA must be a valid ISO date string' })
+  eta?: string;
+
+  @ApiPropertyOptional({
+    description: 'Shipped status or date',
+    example: '2024-01-21',
+    maxLength: 255,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(0, 255)
+  shipped?: string;
+
+  @ApiPropertyOptional({
+    description: 'Date when goods were offloaded (ISO date string)',
+    example: '2024-02-16',
+  })
+  @IsOptional()
+  @IsDateString(
+    {},
+    { message: 'Offloaded date must be a valid ISO date string' },
+  )
+  offloadedDate?: string;
+
+  // Inventory fields (same validation as inventory)
   @ApiProperty({
     description: 'Stock Keeping Unit - unique identifier for the product',
     example: 'SKU-001',
@@ -80,10 +140,7 @@ export class CreateInventoryDto {
     description: 'Skirt (max value: 999.999, up to 3 decimal places)',
     example: 89.123,
   })
-  @IsNumber(
-    { maxDecimalPlaces: 3 },
-    { message: 'Skirt must be a number with up to 3 decimal places only' },
-  )
+  @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
   @Max(MAX_DECIMAL)
   @Type(() => Number)
@@ -165,29 +222,11 @@ export class CreateInventoryDto {
   materialColor?: string;
 
   @ApiPropertyOptional({
-    description: 'Total quantity available (as string to support bigint)',
+    description: 'Inbound quantity (as string to support bigint)',
     example: '1000000000000',
   })
   @Matches(/^\d+$/, { message: 'Quantity must be a numeric string' })
   @IsOptional()
   @IsString()
   quantity?: string;
-
-  @ApiPropertyOptional({
-    description: 'Quantity allocated (as string to support bigint)',
-    example: '500000000000',
-  })
-  @Matches(/^\d+$/, { message: 'Quantity must be a numeric string' })
-  @IsOptional()
-  @IsString()
-  allocatedQuantity?: string;
-
-  @ApiPropertyOptional({
-    description: 'Quantity in hand (as string to support bigint)',
-    example: '500000000000',
-  })
-  @Matches(/^\d+$/, { message: 'Quantity must be a numeric string' })
-  @IsOptional()
-  @IsString()
-  inHandQuantity?: string;
 }
