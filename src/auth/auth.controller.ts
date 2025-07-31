@@ -1,8 +1,7 @@
-import { Controller, Post, Body, Req } from '@nestjs/common';
+import { Controller, Post, Body, Req, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { ApiTags, ApiOperation, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
-import { Request } from 'express';
 
 @ApiTags('auth')
 @ApiBearerAuth()
@@ -13,15 +12,15 @@ export class AuthController {
   @Post('login/web')
   @ApiOperation({ summary: 'Web login (non-mobile roles)' })
   @ApiBody({ type: LoginDto, description: 'Provide email and password' })
-  async loginWeb(@Body() dto: LoginDto) {
-    return this.authService.loginWeb(dto);
+  async loginWeb(@Body() dto: LoginDto, @Request() req: Request) {
+    return this.authService.loginWeb(dto, req);
   }
 
   @Post('login/mobile')
   @ApiOperation({ summary: 'Mobile login (mobile-only role)' })
   @ApiBody({ type: LoginDto, description: 'Provide email and password' })
-  async loginMobile(@Body() dto: LoginDto) {
-    return this.authService.loginMobile(dto);
+  async loginMobile(@Body() dto: LoginDto, @Request() req: Request) {
+    return this.authService.loginMobile(dto, req);
   }
 
   @Post('refresh')

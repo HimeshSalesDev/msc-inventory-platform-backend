@@ -22,6 +22,7 @@ import {
   REQUIRED_FIELDS,
 } from 'src/constants/csv';
 import { normalizeKey } from 'src/lib/stringUtils';
+import { AuditLogService } from 'src/audit-log/audit-log.service';
 
 @Injectable()
 export class InventoryService {
@@ -30,6 +31,8 @@ export class InventoryService {
   constructor(
     @InjectRepository(Inventory)
     private inventoryRepository: Repository<Inventory>,
+
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async findAll(queryDto: QueryInventoryDto): Promise<Inventory[]> {
@@ -154,7 +157,7 @@ export class InventoryService {
     return await this.inventoryRepository.save(inventory);
   }
 
-  async update(updateInventoryDto: UpdateInventoryDto) {
+  async update(updateInventoryDto: UpdateInventoryDto, req: any) {
     const { id, ...updateData } = updateInventoryDto;
 
     const existing = await this.inventoryRepository.findOne({ where: { id } });
@@ -185,6 +188,22 @@ export class InventoryService {
       updatedAt: new Date(),
     });
 
+    const updatedInventory = await this.inventoryRepository.findOne({
+      where: { id },
+    });
+
+    // Log inventory update with before/after data
+    if (req?.user?.id) {
+      await this.auditLogService.logInventoryUpdate(
+        req.user.id,
+        req.user.fullName,
+        existing,
+        updatedInventory,
+        id,
+        req?.ip,
+        req?.get('User-Agent'),
+      );
+    }
     return updated;
   }
 

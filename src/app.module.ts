@@ -9,6 +9,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { InventoryModule } from './inventory/inventory.module';
 import { InboundModule } from './inbound/inbound.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { InboundModule } from './inbound/inbound.module';
     AuthModule,
     InventoryModule,
     InboundModule,
+    AuditLogModule,
   ],
   controllers: [AppController],
   providers: [AppService],
