@@ -29,6 +29,7 @@ import {
   ApiParam,
   ApiBadRequestResponse,
   ApiNotFoundResponse,
+  ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
@@ -43,6 +44,8 @@ import { Inventory } from 'src/entities/inventory.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FindQuantityBySkuDto } from './dto/find-quantity-by-sku.dto';
 import { Public } from 'src/auth/decorators/public.decorator';
+import { OrderConfirmationDto } from './dto/order-confirmation.dto';
+import { OrderConfirmationResponseDto } from './dto/order-confirmation-response.dto';
 
 @ApiTags('inventory')
 @Controller('inventory')
@@ -397,5 +400,50 @@ export class InventoryController {
     @Param() queryDto: FindQuantityBySkuDto,
   ): Promise<Inventory[]> {
     return await this.inventoryService.findQuantityBySKU(queryDto.sku);
+  }
+
+  @Post('order-confirmation')
+  @ApiOperation({
+    summary: 'Confirm order and update inventory quantity',
+    description: `
+    This endpoint is used to confirm an order by SKU and adjust the inventory quantity.
+    - Validates the SKU
+    - Deducts or updates the quantity
+    - Returns confirmation with updated row count
+  `,
+  })
+  @ApiBody({
+    type: OrderConfirmationDto,
+    description: 'Order confirmation payload containing SKU and quantity',
+  })
+  @ApiOkResponse({
+    description: 'Order confirmed and inventory updated successfully',
+    type: OrderConfirmationResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input (missing or malformed SKU/quantity)',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'array', items: { type: 'string' } },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Internal server error',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 500 },
+        message: { type: 'string', example: 'Failed to confirm order' },
+      },
+    },
+  })
+  async orderConfirmation(
+    @Body() orderConfirmationDto: OrderConfirmationDto,
+  ): Promise<OrderConfirmationResponseDto> {
+    return await this.inventoryService.orderConfirmation(orderConfirmationDto);
   }
 }

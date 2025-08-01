@@ -23,6 +23,7 @@ import {
 } from 'src/constants/csv';
 import { normalizeKey } from 'src/lib/stringUtils';
 import { AuditLogService } from 'src/audit-log/audit-log.service';
+import { OrderConfirmationDto } from './dto/order-confirmation.dto';
 
 @Injectable()
 export class InventoryService {
@@ -432,5 +433,58 @@ export class InventoryService {
     }
 
     return await queryBuilder.getMany();
+  }
+
+  async orderConfirmation(payload: OrderConfirmationDto) {
+    const { qty, sku } = payload;
+
+    return await this.inventoryRepository.manager.transaction(
+      async (transactionalEntityManager) => {
+        // Lock the inventory record for update to prevent race conditions
+        const inventory = await transactionalEntityManager
+          .createQueryBuilder()
+          .select('inventory')
+          .from('inventory', 'inventory')
+          .where('inventory.sku = :sku', { sku })
+          .setLock('pessimistic_write')
+          .getOne();
+
+        if (!inventory) {
+          throw new NotFoundException('No Inventory Found!');
+        }
+
+        const inHandQty = parseFloat(inventory.inHandQuantity);
+        const allocatedQuantity = parseFloat(inventory.allocatedQuantity);
+        const parsedQty = parseFloat(qty);
+
+        if (!inHandQty || !parsedQty) {
+          throw new BadRequestException(
+            'Invalid in-hand Quantity or Quantity Value',
+          );
+        }
+
+        if (parsedQty > inHandQty) {
+          throw new BadRequestException('Qty cant be more than in-hand qty');
+        }
+
+        const updatedRows = await transactionalEntityManager.update(
+          'inventory',
+          { id: inventory.id },
+          {
+            inHandQuantity: (inHandQty - parsedQty).toString(),
+            allocatedQuantity: (allocatedQuantity + parsedQty).toString(),
+          },
+        );
+
+        this.logger.log(
+          `Order confirmation successful for SKU: ${sku} | Quantity: ${qty} | Updated Rows: ${updatedRows.affected}`,
+        );
+
+        return {
+          status: 'OK',
+          updatedRows: updatedRows.affected,
+        };
+      },
+    );
   }
 }
