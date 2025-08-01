@@ -11,6 +11,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { InboundModule } from './inbound/inbound.module';
 import { InventoryLocationModule } from './inventory_location/inventory_location.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
+import { InventoryReferenceModule } from './inventory_reference/inventory_reference.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AuditLogModule } from './audit-log/audit-log.module';
     InventoryLocationModule,
     InboundModule,
     AuditLogModule,
+    InventoryReferenceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
