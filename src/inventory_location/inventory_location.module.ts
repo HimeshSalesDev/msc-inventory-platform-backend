@@ -9,10 +9,16 @@ import { JwtConfigModule } from 'src/auth/jwt.module';
 import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from 'src/users/users.module';
 import { AuditLogModule } from 'src/audit-log/audit-log.module';
+import { InventoryReference } from 'src/entities/inventory_reference.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([InventoryLocation, Inventory, Role]),
+    TypeOrmModule.forFeature([
+      InventoryLocation,
+      InventoryReference,
+      Inventory,
+      Role,
+    ]),
     JwtConfigModule,
     ConfigModule,
     UsersModule,

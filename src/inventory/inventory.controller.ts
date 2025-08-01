@@ -42,7 +42,6 @@ import { UserRole } from '../enums/roles.enum';
 import { Inventory } from 'src/entities/inventory.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FindQuantityBySkuDto } from './dto/find-quantity-by-sku.dto';
-import { InventoryInHandQuantityResponseDto } from './dto/inventory-inhand-quantity-response.dto';
 import { Public } from 'src/auth/decorators/public.decorator';
 
 @ApiTags('inventory')
@@ -385,7 +384,7 @@ export class InventoryController {
     required: true,
   })
   @ApiOkResponse({
-    type: InventoryInHandQuantityResponseDto,
+    type: [Inventory],
     description: 'Returns the available in-hand quantity for the provided SKU',
   })
   @ApiBadRequestResponse({
@@ -396,7 +395,7 @@ export class InventoryController {
   })
   async findQuantityBySKU(
     @Param() queryDto: FindQuantityBySkuDto,
-  ): Promise<InventoryInHandQuantityResponseDto> {
+  ): Promise<Inventory[]> {
     return await this.inventoryService.findQuantityBySKU(queryDto.sku);
   }
 }

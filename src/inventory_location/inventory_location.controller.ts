@@ -33,6 +33,8 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { UserRole } from 'src/enums/roles.enum';
+import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
+import { Public } from 'src/auth/decorators/public.decorator';
 
 @ApiTags('Inventory Locations')
 @Controller('inventory-locations')
@@ -111,6 +113,87 @@ export class InventoryLocationController {
       createInventoryLocationDto,
       req,
     );
+  }
+  @Post('/get-by-number')
+  @Public()
+  @ApiOperation({
+    summary: 'Get inventory locations by SKU or PRO number',
+    description: `
+    Fetches all inventory locations associated with a given SKU or PRO number.
+    - Searches by SKU first; if not found, searches by PRO number.
+    - Returns an array of location records for the matching inventory.
+    - If no matching inventory is found, returns 404.
+  `,
+  })
+  @ApiBody({
+    description: 'Provide either SKU or PRO number in a single field',
+    schema: {
+      type: 'object',
+      properties: {
+        skuOrNumber: {
+          type: 'string',
+          example: 'SKU-001 or PRO-12345',
+          description: 'The SKU or PRO number of the inventory item',
+        },
+      },
+      required: ['skuOrNumber'],
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description:
+      'List of inventory locations for the provided SKU or PRO number',
+    type: [InventoryLocationResponseDto],
+    isArray: true,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid or missing SKU/PRO number',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'array', items: { type: 'string' } },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'No inventory found with provided SKU or PRO number',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 404 },
+        message: {
+          type: 'string',
+          example:
+            'No inventory found for the provided SKU or number: "SKU-123".',
+        },
+        error: { type: 'string', example: 'Not Found' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 500 },
+        message: {
+          type: 'string',
+          example: 'Failed to fetch inventory location data.',
+        },
+      },
+    },
+  })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async getLocationBySkuOrPro(
+    @Body() dto: GetLocationByNumberOrSkuDto,
+    @Request() req: Request,
+  ) {
+    return await this.inventoryLocationService.getLocationBySkuOrPro(dto);
   }
 
   // @Get()

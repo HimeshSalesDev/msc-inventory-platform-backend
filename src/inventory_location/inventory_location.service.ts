@@ -18,6 +18,8 @@ import { InventoryLocation } from 'src/entities/inventory_location.entity';
 import { Inventory } from 'src/entities/inventory.entity';
 import { parseSKU, validateSKU } from 'src/lib/sku.util';
 import { AuditLogService } from 'src/audit-log/audit-log.service';
+import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
+import { InventoryReference } from 'src/entities/inventory_reference.entity';
 
 type TotalQuantityResult = {
   total: string | null;
@@ -41,6 +43,8 @@ export class InventoryLocationService {
     private readonly inventoryLocationRepository: Repository<InventoryLocation>,
     @InjectRepository(Inventory)
     private readonly inventoryRepository: Repository<Inventory>,
+    @InjectRepository(InventoryReference)
+    private readonly inventoryReference: Repository<InventoryReference>,
     private readonly dataSource: DataSource,
 
     private readonly auditLogService: AuditLogService,
@@ -908,5 +912,49 @@ export class InventoryLocationService {
         'Failed to retrieve analytics summary',
       );
     }
+  }
+
+  async getLocationBySkuOrPro(payload: GetLocationByNumberOrSkuDto) {
+    const { skuOrNumber } = payload;
+
+    if (!skuOrNumber?.trim()) {
+      throw new BadRequestException('SKU or PRO number must be provided.');
+    }
+
+    let inventoryData: Inventory | null = null;
+
+    inventoryData = await this.inventoryRepository.findOne({
+      where: { sku: skuOrNumber },
+    });
+
+    if (!inventoryData) {
+      const inventoryReference = await this.inventoryReference.findOne({
+        where: { number: skuOrNumber },
+        select: ['inventoryId'],
+      });
+
+      if (inventoryReference) {
+        inventoryData = await this.inventoryRepository.findOne({
+          where: { id: inventoryReference.inventoryId },
+        });
+      }
+    }
+
+    if (!inventoryData) {
+      throw new NotFoundException(
+        `No inventory found for the provided identifier: "${skuOrNumber}".`,
+      );
+    }
+
+    const inventoryLocationData = await this.inventoryLocationRepository.find({
+      where: { inventoryId: inventoryData.id },
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      sku: inventoryData.sku,
+      locations: inventoryLocationData,
+      totalLocations: inventoryLocationData.length,
+    };
   }
 }
