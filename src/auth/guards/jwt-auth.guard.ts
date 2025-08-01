@@ -4,8 +4,10 @@ import {
   ExecutionContext,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { UsersService } from 'src/users/users.service';
 
 @Injectable()
@@ -14,9 +16,19 @@ export class JwtAuthGuard implements CanActivate {
     private jwtService: JwtService,
     private configService: ConfigService,
     private usersService: UsersService,
+    private reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    //  Check for @Public() metadata on handler or controller
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true; // Skip auth check for public routes
+    }
+
     const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
 
@@ -28,14 +40,12 @@ export class JwtAuthGuard implements CanActivate {
       const secret = this.configService.get<string>('JWT_SECRET');
       const payload = this.jwtService.verify(token, { secret });
 
-      // Optionally verify user still exists and is active
       const user = await this.usersService.findById(payload.id);
 
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
 
-      // Attach user info to request for use in controllers
       request.user = {
         id: user.id,
         email: user.email,
@@ -51,7 +61,6 @@ export class JwtAuthGuard implements CanActivate {
 
   private extractTokenFromHeader(request: any): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return type === 'Bearer' ? token : undefined;
+    return type === 'Bearer' ? (token as string) : undefined;
   }
 }

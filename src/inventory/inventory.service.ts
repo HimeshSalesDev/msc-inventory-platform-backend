@@ -23,6 +23,7 @@ import {
 } from 'src/constants/csv';
 import { normalizeKey } from 'src/lib/stringUtils';
 import { AuditLogService } from 'src/audit-log/audit-log.service';
+import { InventoryInHandQuantityResponseDto } from './dto/inventory-inhand-quantity-response.dto';
 
 @Injectable()
 export class InventoryService {
@@ -414,6 +415,31 @@ export class InventoryService {
       failed: failedImports.length,
       failures: failedImports,
       importedItems: successfulImports,
+    };
+  }
+
+  async findQuantityBySKU(
+    sku: string,
+  ): Promise<InventoryInHandQuantityResponseDto> {
+    // Validate SKU input
+    if (!sku || typeof sku !== 'string' || !sku.trim()) {
+      throw new BadRequestException('SKU must be a non-empty string.');
+    }
+
+    // Fetch inventory record
+    const checkInventory = await this.inventoryRepository.findOne({
+      where: { sku: sku },
+    });
+
+    // Handle not found case
+    if (!checkInventory) {
+      throw new NotFoundException(
+        `No inventory found for the provided SKU: "${sku}". Please verify the SKU and try again.`,
+      );
+    }
+
+    return {
+      inHandQuantity: checkInventory.inHandQuantity?.toString() ?? '0',
     };
   }
 }

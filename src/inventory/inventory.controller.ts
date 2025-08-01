@@ -15,6 +15,7 @@ import {
   NotFoundException,
   UseInterceptors,
   UploadedFile,
+  Param,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,6 +26,9 @@ import {
   ApiResponse,
   ApiBody,
   ApiConsumes,
+  ApiParam,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
@@ -37,6 +41,9 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../enums/roles.enum';
 import { Inventory } from 'src/entities/inventory.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { FindQuantityBySkuDto } from './dto/find-quantity-by-sku.dto';
+import { InventoryInHandQuantityResponseDto } from './dto/inventory-inhand-quantity-response.dto';
+import { Public } from 'src/auth/decorators/public.decorator';
 
 @ApiTags('inventory')
 @Controller('inventory')
@@ -366,5 +373,30 @@ export class InventoryController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Get('inhand-quantity/:sku')
+  @Public()
+  @ApiOperation({ summary: 'Get inventory in-hand quantity by SKU' })
+  @ApiParam({
+    name: 'sku',
+    description: 'Unique SKU of the inventory item',
+    example: 'SKU-001',
+    required: true,
+  })
+  @ApiOkResponse({
+    type: InventoryInHandQuantityResponseDto,
+    description: 'Returns the available in-hand quantity for the provided SKU',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid SKU format or missing SKU parameter',
+  })
+  @ApiNotFoundResponse({
+    description: 'Inventory record not found for the given SKU',
+  })
+  async findQuantityBySKU(
+    @Param() queryDto: FindQuantityBySkuDto,
+  ): Promise<InventoryInHandQuantityResponseDto> {
+    return await this.inventoryService.findQuantityBySKU(queryDto.sku);
   }
 }
