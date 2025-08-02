@@ -13,7 +13,10 @@ import { Repository, DataSource, QueryRunner } from 'typeorm';
 import { CreateInventoryLocationDto } from './dto/create-inventory-location.dto';
 import { UpdateInventoryLocationDto } from './dto/update-inventory-location.dto';
 import { QueryInventoryLocationDto } from './dto/query-inventory-location.dto';
-import { InventoryLocationResponseDto } from './dto/inventory-location-response.dto';
+import {
+  FindBySkuOrNumberResponseDto,
+  InventoryLocationResponseDto,
+} from './dto/inventory-location-response.dto';
 import { InventoryLocation } from 'src/entities/inventory_location.entity';
 import { Inventory } from 'src/entities/inventory.entity';
 import { parseSKU, validateSKU } from 'src/lib/sku.util';
@@ -914,7 +917,9 @@ export class InventoryLocationService {
     }
   }
 
-  async getLocationBySkuOrPro(payload: GetLocationByNumberOrSkuDto) {
+  async getLocationBySkuOrPro(
+    payload: GetLocationByNumberOrSkuDto,
+  ): Promise<FindBySkuOrNumberResponseDto> {
     const { skuOrNumber } = payload;
 
     if (!skuOrNumber?.trim()) {
@@ -954,7 +959,6 @@ export class InventoryLocationService {
     return {
       sku: inventoryData.sku,
       locations: inventoryLocationData,
-      totalLocations: inventoryLocationData.length,
     };
   }
 }

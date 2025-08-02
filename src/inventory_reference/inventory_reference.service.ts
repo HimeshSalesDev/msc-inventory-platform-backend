@@ -21,7 +21,6 @@ export class InventoryReferenceService {
 
   async create(
     createDto: CreateInventoryReferenceDto,
-    req: any,
   ): Promise<InventoryReferenceResponseDto> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -31,7 +30,6 @@ export class InventoryReferenceService {
       const result = await this.createOrUpdateInventoryReference(
         queryRunner,
         createDto,
-        req,
       );
       await queryRunner.commitTransaction();
       return result;
@@ -41,6 +39,11 @@ export class InventoryReferenceService {
         `Failed to create inventory location: ${error.message}`,
         error.stack,
       );
+
+      // FIX: Handle database constraint violations
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new ConflictException('Record already exists');
+      }
 
       if (
         error instanceof BadRequestException ||
@@ -61,14 +64,13 @@ export class InventoryReferenceService {
   private async createOrUpdateInventoryReference(
     queryRunner: QueryRunner,
     createDto: CreateInventoryReferenceDto,
-    req: any,
-  ) {
+  ): Promise<InventoryReferenceResponseDto> {
     const { sku, number, type } = createDto;
 
-    let isNewInventory = false;
-    let isNewReference = false;
-    let originalInventoryData: Inventory = null;
-    let originalReferenceData: InventoryReference = null;
+    // FIX: Validate SKU early
+    if (!validateSKU(sku)) {
+      throw new BadRequestException('Invalid SKU format');
+    }
 
     // Find or create inventory with lock
     let inventory = await queryRunner.manager.findOne(Inventory, {
@@ -77,10 +79,6 @@ export class InventoryReferenceService {
     });
 
     if (!inventory) {
-      if (!validateSKU(sku)) {
-        throw new BadRequestException('Invalid SKU format');
-      }
-
       const productInfo = parseSKU(sku);
       // Create new inventory record
       inventory = queryRunner.manager.create(Inventory, {
@@ -97,11 +95,25 @@ export class InventoryReferenceService {
           : null,
         materialColor: productInfo.colorName,
       });
-      inventory = await queryRunner.manager.save(Inventory, inventory);
-      isNewInventory = true;
-    } else {
-      // Store original inventory data for audit
-      originalInventoryData = { ...inventory };
+
+      try {
+        inventory = await queryRunner.manager.save(Inventory, inventory);
+      } catch (error) {
+        // If duplicate key error, another thread created it, fetch it
+        if (error.code === 'ER_DUP_ENTRY') {
+          inventory = await queryRunner.manager.findOne(Inventory, {
+            where: { sku },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (!inventory) {
+            throw new InternalServerErrorException(
+              'Failed to find inventory after conflict',
+            );
+          }
+        } else {
+          throw error;
+        }
+      }
     }
 
     // Check if Inventory Reference already exists for this inventory and bin
@@ -120,55 +132,81 @@ export class InventoryReferenceService {
     let inventoryReference: InventoryReference;
 
     if (existingReference) {
-      // Store original location data for audit
-      originalReferenceData = { ...existingReference };
+      // FIX: Only update if values are actually different
+      if (
+        existingReference.type !== type ||
+        existingReference.number !== number
+      ) {
+        await queryRunner.manager.update(
+          InventoryReference,
+          existingReference.id,
+          {
+            type,
+            number,
+          },
+        );
 
-      // Update existing References
-      const type = existingReference.type;
-      const number = existingReference.number;
+        inventoryReference = await queryRunner.manager.findOne(
+          InventoryReference,
+          {
+            where: { id: existingReference.id },
+          },
+        );
 
-      await queryRunner.manager.update(
-        InventoryReference,
-        existingReference.id,
-        {
-          type,
-          number,
-        },
-      );
-
-      inventoryReference = await queryRunner.manager.findOne(
-        InventoryReference,
-        {
-          where: { id: existingReference.id },
-        },
-      );
-
-      this.logger.log(
-        `Updated inventory reference created: ${inventoryReference.id}`,
-      );
+        this.logger.log(
+          `Updated inventory reference: ${inventoryReference.id} ${sku} ${type} ${number}`,
+        );
+      } else {
+        // No update needed, just return existing
+        inventoryReference = existingReference;
+        this.logger.log(
+          `Inventory reference already exists: ${inventoryReference.id} ${sku} ${type} ${number}`,
+        );
+      }
     } else {
-      // Create new Reference
-      inventoryReference = queryRunner.manager.create(InventoryReference, {
-        inventoryId: inventory.id,
-        type: type,
-        number: number,
-      });
-      inventoryReference = await queryRunner.manager.save(
-        InventoryReference,
-        inventoryReference,
-      );
-      isNewReference = true;
+      // FIX: Handle race condition for reference creation
+      try {
+        // Create new Reference
+        inventoryReference = queryRunner.manager.create(InventoryReference, {
+          inventoryId: inventory.id,
+          type: type,
+          number: number,
+        });
+        inventoryReference = await queryRunner.manager.save(
+          InventoryReference,
+          inventoryReference,
+        );
 
-      this.logger.log(
-        `New inventory reference created: ${inventoryReference.id}`,
-      );
+        this.logger.log(
+          `New inventory reference created: ${inventoryReference.id}  ${sku} ${type} ${number}`,
+        );
+      } catch (error) {
+        // If duplicate key error, fetch the existing one
+        if (error.code === 'ER_DUP_ENTRY') {
+          inventoryReference = await queryRunner.manager.findOne(
+            InventoryReference,
+            {
+              where: {
+                inventoryId: inventory.id,
+                number: number,
+                type: type,
+              },
+            },
+          );
+          if (!inventoryReference) {
+            throw new InternalServerErrorException(
+              'Failed to find reference after conflict',
+            );
+          }
+          this.logger.log(
+            `Inventory reference already created by another request: ${inventoryReference.id} ${sku} ${type} ${number}`,
+          );
+        } else {
+          throw error;
+        }
+      }
     }
 
-    return InventoryReferenceResponseDto.fromEntity(
-      inventoryReference,
-      sku,
-      number,
-      type,
-    );
+    return inventoryReference;
   }
 }

@@ -6,12 +6,13 @@ import {
   HttpException,
   HttpStatus,
   Post,
-  Req,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { InventoryReferenceService } from './inventory_reference.service';
 import { CreateInventoryReferenceDto } from './dto/create_inventory_reference.dto';
+import { ApiBody, ApiResponse } from '@nestjs/swagger';
+import { InventoryReferenceResponseDto } from './dto/inventory_reference_response.dto';
 
 @Controller('inventory-reference')
 export class InventoryReferenceController {
@@ -20,14 +21,20 @@ export class InventoryReferenceController {
   ) {}
 
   @Post()
+  @ApiBody({
+    type: CreateInventoryReferenceDto,
+    description: 'Inventory reference data from trends',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Inventory reference created or updated successfully',
+    type: InventoryReferenceResponseDto,
+  })
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async createInventoryReference(
     @Body() createInventoryReferenceDto: CreateInventoryReferenceDto,
-    @Req() req,
   ) {
-    //
     try {
-      // Validate required fields
       if (
         !createInventoryReferenceDto.sku ||
         !createInventoryReferenceDto.number ||
@@ -38,7 +45,6 @@ export class InventoryReferenceController {
 
       return await this.inventoryReferenceService.create(
         createInventoryReferenceDto,
-        req,
       );
     } catch (error) {
       if (

@@ -440,11 +440,8 @@ export class InventoryService {
 
     return await this.inventoryRepository.manager.transaction(
       async (transactionalEntityManager) => {
-        // Lock the inventory record for update to prevent race conditions
         const inventory = await transactionalEntityManager
-          .createQueryBuilder()
-          .select('inventory')
-          .from('inventory', 'inventory')
+          .createQueryBuilder(Inventory, 'inventory') // Use entity class
           .where('inventory.sku = :sku', { sku })
           .setLock('pessimistic_write')
           .getOne();
@@ -453,26 +450,31 @@ export class InventoryService {
           throw new NotFoundException('No Inventory Found!');
         }
 
-        const inHandQty = parseFloat(inventory.inHandQuantity);
-        const allocatedQuantity = parseFloat(inventory.allocatedQuantity);
-        const parsedQty = parseFloat(qty);
+        const inHandQty = parseInt(inventory.inHandQuantity || '0');
+        const allocatedQuantity = parseInt(inventory.allocatedQuantity || '0');
+        const parsedQty = parseInt(qty);
 
-        if (!inHandQty || !parsedQty) {
-          throw new BadRequestException(
-            'Invalid in-hand Quantity or Quantity Value',
-          );
+        if (isNaN(inHandQty) || isNaN(parsedQty) || isNaN(allocatedQuantity)) {
+          throw new BadRequestException('Invalid quantity values');
+        }
+
+        if (parsedQty <= 0) {
+          throw new BadRequestException('Quantity must be positive');
         }
 
         if (parsedQty > inHandQty) {
           throw new BadRequestException('Qty cant be more than in-hand qty');
         }
 
+        const updatedInHand = inHandQty - parsedQty;
+        const updatedAllocated = allocatedQuantity + parsedQty;
+
         const updatedRows = await transactionalEntityManager.update(
-          'inventory',
+          Inventory,
           { id: inventory.id },
           {
-            inHandQuantity: (inHandQty - parsedQty).toString(),
-            allocatedQuantity: (allocatedQuantity + parsedQty).toString(),
+            inHandQuantity: updatedInHand.toString(),
+            allocatedQuantity: updatedAllocated.toString(),
           },
         );
 

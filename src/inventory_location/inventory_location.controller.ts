@@ -27,7 +27,10 @@ import {
 import { CreateInventoryLocationDto } from './dto/create-inventory-location.dto';
 import { UpdateInventoryLocationDto } from './dto/update-inventory-location.dto';
 import { QueryInventoryLocationDto } from './dto/query-inventory-location.dto';
-import { InventoryLocationResponseDto } from './dto/inventory-location-response.dto';
+import {
+  FindBySkuOrNumberResponseDto,
+  InventoryLocationResponseDto,
+} from './dto/inventory-location-response.dto';
 import { InventoryLocationService } from './inventory_location.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
@@ -114,7 +117,7 @@ export class InventoryLocationController {
       req,
     );
   }
-  @Post('/get-by-number')
+  @Post('/find-by-sku-or-number')
   @Public()
   @ApiOperation({
     summary: 'Get inventory locations by SKU or PRO number',
@@ -143,7 +146,7 @@ export class InventoryLocationController {
     status: HttpStatus.OK,
     description:
       'List of inventory locations for the provided SKU or PRO number',
-    type: [InventoryLocationResponseDto],
+    type: FindBySkuOrNumberResponseDto,
     isArray: true,
   })
   @ApiResponse({
@@ -189,10 +192,7 @@ export class InventoryLocationController {
     },
   })
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async getLocationBySkuOrPro(
-    @Body() dto: GetLocationByNumberOrSkuDto,
-    @Request() req: Request,
-  ) {
+  async getLocationBySkuOrPro(@Body() dto: GetLocationByNumberOrSkuDto) {
     return await this.inventoryLocationService.getLocationBySkuOrPro(dto);
   }
 
