@@ -23,6 +23,11 @@ import { parseSKU, validateSKU } from 'src/lib/sku.util';
 import { AuditLogService } from 'src/audit-log/audit-log.service';
 import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
 import { InventoryReference } from 'src/entities/inventory_reference.entity';
+import {
+  RemoveQuantityDto,
+  RemoveQuantityResponseDto,
+} from './dto/remove-quantity.dto';
+import { AuditEventService } from 'src/audit-log/audit-event.service';
 
 type TotalQuantityResult = {
   total: string | null;
@@ -49,8 +54,7 @@ export class InventoryLocationService {
     @InjectRepository(InventoryReference)
     private readonly inventoryReference: Repository<InventoryReference>,
     private readonly dataSource: DataSource,
-
-    private readonly auditLogService: AuditLogService,
+    private auditEventService: AuditEventService,
   ) {}
 
   async create(
@@ -90,6 +94,179 @@ export class InventoryLocationService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async removeQuantity(
+    removeDto: RemoveQuantityDto,
+    req: any,
+  ): Promise<RemoveQuantityResponseDto> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const result = await this.removeQuantityFromLocation(
+        queryRunner,
+        removeDto,
+        req,
+      );
+      await queryRunner.commitTransaction();
+      return result;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `Failed to remove quantity from location: ${error.message}`,
+        error.stack,
+      );
+
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        'Failed to remove quantity from location',
+      );
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  private async removeQuantityFromLocation(
+    queryRunner: QueryRunner,
+    removeDto: RemoveQuantityDto,
+    req: any,
+  ): Promise<RemoveQuantityResponseDto> {
+    const { inventoryLocationId, quantity } = removeDto;
+
+    // Validate quantity early
+    let removeQuantity: bigint;
+    try {
+      removeQuantity = BigInt(quantity);
+      if (removeQuantity <= 0n) {
+        throw new BadRequestException('Quantity must be positive');
+      }
+    } catch (error) {
+      throw new BadRequestException('Invalid quantity format');
+    }
+
+    // Find inventory location with lock
+    const inventoryLocation = await queryRunner.manager.findOne(
+      InventoryLocation,
+      {
+        where: { id: inventoryLocationId },
+        lock: { mode: 'pessimistic_write' },
+        relations: ['inventory'], // Assuming you have this relation
+      },
+    );
+
+    if (!inventoryLocation) {
+      throw new NotFoundException(
+        `Inventory location with ID ${inventoryLocationId} not found`,
+      );
+    }
+
+    // Get inventory with lock (if not included in relations)
+    const inventory =
+      inventoryLocation.inventory ||
+      (await queryRunner.manager.findOne(Inventory, {
+        where: { id: inventoryLocation.inventoryId },
+        lock: { mode: 'pessimistic_write' },
+      }));
+
+    if (!inventory) {
+      throw new NotFoundException('Associated inventory not found');
+    }
+
+    // Store original data for audit
+    const originalLocationData = { ...inventoryLocation };
+    const originalInventoryData = { ...inventory };
+
+    // Validate available quantity
+    const currentQuantity = BigInt(inventoryLocation.quantity);
+
+    if (removeQuantity > currentQuantity) {
+      throw new BadRequestException(
+        `Cannot remove ${quantity} units. Only ${currentQuantity.toString()} units available in this location.`,
+      );
+    }
+
+    // Calculate new quantity
+    const newQuantity = currentQuantity - removeQuantity;
+
+    // Update inventory location
+    await queryRunner.manager.update(InventoryLocation, inventoryLocationId, {
+      quantity: newQuantity.toString(),
+    });
+
+    // Get updated inventory location
+    const updatedLocation = {
+      ...inventoryLocation,
+      quantity: newQuantity.toString(),
+    };
+
+    // Calculate total quantity across all locations for this inventory
+    const totalQuantity =
+      await this.calculateTotalQuantityForInventoryWithQueryRunner(
+        queryRunner,
+        inventory.id,
+      );
+
+    // Update inventory total quantity
+    await queryRunner.manager.update(Inventory, inventory.id, {
+      quantity: totalQuantity,
+    });
+
+    // Get updated inventory for audit
+    const updatedInventory = {
+      ...inventory,
+      quantity: totalQuantity,
+    };
+
+    // Audit logging after successful transaction
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+      };
+
+      try {
+        // Log inventory location quantity removal
+        this.auditEventService.emitInventoryLocationUpdated(
+          requestContext,
+          originalLocationData,
+          updatedLocation,
+          inventoryLocationId,
+        );
+
+        // Log inventory quantity update (if changed)
+        if (originalInventoryData.quantity !== updatedInventory.quantity) {
+          this.auditEventService.emitInventoryUpdated(
+            requestContext,
+            originalInventoryData,
+            updatedInventory,
+            inventory.id,
+          );
+        }
+
+        this.logger.log(
+          `Quantity removal successful - SKU: ${inventory.sku}, Location: ${inventoryLocation.location}, Removed: ${removeQuantity.toString()}, Remaining: ${newQuantity.toString()}`,
+        );
+      } catch (auditError) {
+        // Log audit errors but don't fail the main operation
+        this.logger.error('Error creating audit logs:', auditError);
+      }
+    }
+
+    return RemoveQuantityResponseDto.fromData(
+      updatedLocation,
+      totalQuantity,
+      inventory.sku,
+    );
   }
 
   async findAll(
@@ -545,32 +722,23 @@ export class InventoryLocationService {
       try {
         // Log inventory location operation
         if (isNewLocation) {
-          await this.auditLogService.logInventoryLocationCreate(
+          this.auditEventService.emitInventoryLocationCreated(
             requestContext,
-            {
-              ...inventoryLocation,
-              sku: sku,
-            },
+            inventoryLocation,
             inventoryLocation.id,
           );
         } else {
-          await this.auditLogService.logInventoryLocationUpdate(
+          this.auditEventService.emitInventoryLocationUpdated(
             requestContext,
-            {
-              ...originalLocationData,
-              sku: sku,
-            },
-            {
-              ...inventoryLocation,
-              sku: sku,
-            },
+            originalLocationData,
+            inventoryLocation,
             inventoryLocation.id,
           );
         }
 
         // Log inventory operation
         if (isNewInventory) {
-          await this.auditLogService.logInventoryCreate(
+          this.auditEventService.emitInventoryCreated(
             requestContext,
             updatedInventory,
             inventory.id,
@@ -578,7 +746,7 @@ export class InventoryLocationService {
         } else {
           // Only log inventory update if quantity actually changed
           if (originalInventoryData.quantity !== updatedInventory.quantity) {
-            await this.auditLogService.logInventoryUpdate(
+            this.auditEventService.emitInventoryUpdated(
               requestContext,
               originalInventoryData,
               updatedInventory,

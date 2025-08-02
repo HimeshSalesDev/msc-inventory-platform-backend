@@ -12,10 +12,27 @@ import { InboundModule } from './inbound/inbound.module';
 import { InventoryLocationModule } from './inventory_location/inventory_location.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { InventoryReferenceModule } from './inventory_reference/inventory_reference.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    EventEmitterModule.forRoot({
+      // Set this to `true` to use wildcards
+      wildcard: true,
+      // the delimiter used to segment namespaces
+      delimiter: '.',
+      // set this to `true` if you want to emit the newListener event
+      newListener: false,
+      // set this to `true` if you want to emit the removeListener event
+      removeListener: false,
+      // the maximum amount of listeners that can be assigned to an event
+      maxListeners: 20,
+      // show event name in memory leak message when more than maximum amount of listeners is assigned
+      verboseMemoryLeak: false,
+      // disable throwing uncaughtException if an error event is emitted and it has no listeners
+      ignoreErrors: false,
+    }),
     TypeOrmModule.forRoot(AppDataSource.options),
     PassportModule.register({ session: false }),
     UsersModule,

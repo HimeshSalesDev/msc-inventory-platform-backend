@@ -1,0 +1,168 @@
+import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  AuditEvent,
+  InventoryCreatedEvent,
+  InventoryUpdatedEvent,
+  InventoryDeletedEvent,
+  UserLoginEvent,
+  UserLogoutEvent,
+  InventoryLocationCreatedEvent,
+  InventoryLocationUpdatedEvent,
+} from '../events/audit.events';
+import { AuditLogType } from 'src/entities/auditLog.entity';
+
+export interface RequestContext {
+  userId: string;
+  userName: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+@Injectable()
+export class AuditEventService {
+  constructor(private eventEmitter: EventEmitter2) {}
+
+  // Generic method to emit audit events
+  private emitAuditEvent(event: AuditEvent): void {
+    this.eventEmitter.emit(`audit.${event.type}`, event);
+  }
+
+  // User authentication events
+  emitLoginEvent(
+    userId: string,
+    userName: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): void {
+    const event = new UserLoginEvent(userId, userName, ipAddress, userAgent);
+    this.emitAuditEvent(event);
+  }
+
+  emitLogoutEvent(
+    userId: string,
+    userName: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): void {
+    const event = new UserLogoutEvent(userId, userName, ipAddress, userAgent);
+    this.emitAuditEvent(event);
+  }
+
+  // Inventory events
+  emitInventoryCreated(
+    context: RequestContext,
+    inventoryData: Record<string, any>,
+    inventoryId: string,
+  ): void {
+    const event = new InventoryCreatedEvent(
+      context.userId,
+      context.userName,
+      inventoryData,
+      inventoryId,
+      context.ipAddress,
+      context.userAgent,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInventoryUpdated(
+    context: RequestContext,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    inventoryId: string,
+  ): void {
+    const event = new InventoryUpdatedEvent(
+      context.userId,
+      context.userName,
+      previousData,
+      updatedData,
+      inventoryId,
+      context.ipAddress,
+      context.userAgent,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInventoryDeleted(
+    context: RequestContext,
+    inventoryData: Record<string, any>,
+    inventoryId: string,
+  ): void {
+    const event = new InventoryDeletedEvent(
+      context.userId,
+      context.userName,
+      inventoryData,
+      inventoryId,
+      context.ipAddress,
+      context.userAgent,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInventoryLocationCreated(
+    context: RequestContext,
+    inventoryLocationData: Record<string, any>,
+    inventoryLocationId: string,
+  ): void {
+    const event = new InventoryLocationCreatedEvent(
+      context.userId,
+      context.userName,
+      inventoryLocationData,
+      inventoryLocationId,
+      context.ipAddress,
+      context.userAgent,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInventoryLocationUpdated(
+    context: RequestContext,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    inventoryLocationId: string,
+  ): void {
+    const event = new InventoryLocationUpdatedEvent(
+      context.userId,
+      context.userName,
+      previousData,
+      updatedData,
+      inventoryLocationId,
+      context.ipAddress,
+      context.userAgent,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  // Generic method for custom audit events
+  emitCustomAuditEvent(
+    userId: string,
+    userName: string,
+    type: AuditLogType,
+    options?: {
+      entityName?: string;
+      entityId?: string;
+      previousData?: Record<string, any>;
+      updatedData?: Record<string, any>;
+      action?: string;
+      ipAddress?: string;
+      userAgent?: string;
+      isLogWithoutData?: boolean;
+    },
+  ): void {
+    const event = new AuditEvent(
+      userId,
+      userName,
+      type,
+      options?.entityName,
+      options?.entityId,
+      options?.previousData,
+      options?.updatedData,
+      options?.action,
+      options?.ipAddress,
+      options?.userAgent,
+      options?.isLogWithoutData,
+    );
+    this.emitAuditEvent(event);
+  }
+}

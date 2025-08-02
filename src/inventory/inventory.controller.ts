@@ -104,6 +104,7 @@ export class InventoryController {
   })
   async create(
     @Body() createInventoryDto: CreateInventoryDto,
+    @Request() req: Request,
   ): Promise<Inventory> {
     try {
       // Validate required fields
@@ -116,7 +117,7 @@ export class InventoryController {
         throw new BadRequestException('Required fields are missing.');
       }
 
-      return await this.inventoryService.create(createInventoryDto);
+      return await this.inventoryService.create(createInventoryDto, req);
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -210,13 +211,14 @@ export class InventoryController {
   })
   async delete(
     @Body() body: { id: string },
+    @Request() req: Request,
   ): Promise<{ success: boolean; message: string }> {
     try {
       if (!body.id) {
         throw new BadRequestException('Inventory ID is required');
       }
 
-      await this.inventoryService.delete(body.id);
+      await this.inventoryService.delete(body.id, req);
       return { success: true, message: 'Inventory deleted' };
     } catch (error) {
       if (

@@ -13,6 +13,8 @@ import {
   ParseUUIDPipe,
   UseGuards,
   Request,
+  Req,
+  HttpCode,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -38,6 +40,10 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 import { UserRole } from 'src/enums/roles.enum';
 import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
 import { Public } from 'src/auth/decorators/public.decorator';
+import {
+  RemoveQuantityDto,
+  RemoveQuantityResponseDto,
+} from './dto/remove-quantity.dto';
 
 @ApiTags('Inventory Locations')
 @Controller('inventory-locations')
@@ -117,8 +123,9 @@ export class InventoryLocationController {
       req,
     );
   }
+
   @Post('/find-by-sku-or-number')
-  @Public()
+  @Roles(UserRole.MOBILE_APP)
   @ApiOperation({
     summary: 'Get inventory locations by SKU or PRO number',
     description: `
@@ -194,6 +201,63 @@ export class InventoryLocationController {
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async getLocationBySkuOrPro(@Body() dto: GetLocationByNumberOrSkuDto) {
     return await this.inventoryLocationService.getLocationBySkuOrPro(dto);
+  }
+
+  @Post('remove-quantity')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Remove quantity from inventory location',
+    description:
+      'Remove specified quantity from an inventory location and update total inventory quantity',
+  })
+  @ApiBody({
+    description: 'Remove quantity request',
+    schema: {
+      type: 'object',
+      properties: {
+        inventoryLocationId: {
+          type: 'string',
+          example: 'uuid',
+          description: 'ID of the inventory location',
+        },
+        quantity: {
+          type: 'string',
+          example: '10',
+          description: 'Quantity to remove (as string to handle large numbers)',
+        },
+      },
+      required: ['inventoryLocationId', 'quantity'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Quantity removed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        remainingQuantity: { type: 'string' },
+        totalInventoryQuantity: { type: 'string' },
+        sku: { type: 'string' },
+        location: { type: 'string' },
+        binNumber: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid quantity or insufficient stock',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Inventory location not found',
+  })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async removeQuantity(
+    @Body() removeDto: RemoveQuantityDto,
+    @Req() req: any,
+  ): Promise<RemoveQuantityResponseDto> {
+    return this.inventoryLocationService.removeQuantity(removeDto, req);
   }
 
   // @Get()
