@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AuditLog, AuditLogType } from '../entities/auditLog.entity';
+import { AuditLog, AuditLogType } from '../../entities/auditLog.entity';
 import { AuditEvent } from '../events/audit.events';
 
 interface ComparisonResult {
@@ -43,6 +43,7 @@ export class AuditListener {
       ipAddress,
       userAgent,
       isLogWithoutData = false,
+      controllerPath,
     } = event;
 
     if (!userId) {
@@ -52,9 +53,13 @@ export class AuditListener {
 
     const entityInfo = entityName ?? '';
     const entityIdInfo = entityId;
-    const description = `User ${userName} ${action} ${entityInfo}${
+    let description = `User ${userName} ${action} ${entityInfo}${
       entityIdInfo ? ` (ID: ${entityIdInfo})` : ''
     }`;
+
+    if (controllerPath) {
+      description += ` via ${controllerPath}`;
+    }
 
     // Handle events without data comparison
     if (

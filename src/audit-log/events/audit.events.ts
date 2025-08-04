@@ -13,6 +13,7 @@ export class AuditEvent {
     public readonly ipAddress?: string,
     public readonly userAgent?: string,
     public readonly isLogWithoutData?: boolean,
+    public readonly controllerPath?: string,
   ) {}
 }
 
@@ -24,6 +25,7 @@ export class InventoryCreatedEvent extends AuditEvent {
     inventoryId: string,
     ipAddress?: string,
     userAgent?: string,
+    controllerPath?: string,
   ) {
     super(
       userId,
@@ -36,6 +38,8 @@ export class InventoryCreatedEvent extends AuditEvent {
       'created',
       ipAddress,
       userAgent,
+      false,
+      controllerPath,
     );
   }
 }
@@ -49,6 +53,7 @@ export class InventoryUpdatedEvent extends AuditEvent {
     inventoryId: string,
     ipAddress?: string,
     userAgent?: string,
+    controllerPath?: string,
   ) {
     super(
       userId,
@@ -61,6 +66,8 @@ export class InventoryUpdatedEvent extends AuditEvent {
       'updated',
       ipAddress,
       userAgent,
+      false,
+      controllerPath,
     );
   }
 }
@@ -73,6 +80,7 @@ export class InventoryDeletedEvent extends AuditEvent {
     inventoryId: string,
     ipAddress?: string,
     userAgent?: string,
+    controllerPath?: string,
   ) {
     super(
       userId,
@@ -85,6 +93,8 @@ export class InventoryDeletedEvent extends AuditEvent {
       'deleted',
       ipAddress,
       userAgent,
+      false,
+      controllerPath,
     );
   }
 }
@@ -95,6 +105,7 @@ export class UserLoginEvent extends AuditEvent {
     userName: string,
     ipAddress?: string,
     userAgent?: string,
+    controllerPath?: string,
   ) {
     super(
       userId,
@@ -108,6 +119,7 @@ export class UserLoginEvent extends AuditEvent {
       ipAddress,
       userAgent,
       true,
+      controllerPath,
     );
   }
 }
@@ -118,6 +130,7 @@ export class UserLogoutEvent extends AuditEvent {
     userName: string,
     ipAddress?: string,
     userAgent?: string,
+    controllerPath?: string,
   ) {
     super(
       userId,
@@ -131,6 +144,7 @@ export class UserLogoutEvent extends AuditEvent {
       ipAddress,
       userAgent,
       true,
+      controllerPath,
     );
   }
 }
@@ -143,6 +157,7 @@ export class InventoryLocationCreatedEvent extends AuditEvent {
     inventoryLocationId: string,
     ipAddress?: string,
     userAgent?: string,
+    controllerPath?: string,
   ) {
     super(
       userId,
@@ -155,6 +170,8 @@ export class InventoryLocationCreatedEvent extends AuditEvent {
       'created',
       ipAddress,
       userAgent,
+      false,
+      controllerPath,
     );
   }
 }
@@ -168,6 +185,7 @@ export class InventoryLocationUpdatedEvent extends AuditEvent {
     inventoryLocationId: string,
     ipAddress?: string,
     userAgent?: string,
+    controllerPath?: string,
   ) {
     super(
       userId,
@@ -180,6 +198,8 @@ export class InventoryLocationUpdatedEvent extends AuditEvent {
       'updated',
       ipAddress,
       userAgent,
+      false,
+      controllerPath,
     );
   }
 }

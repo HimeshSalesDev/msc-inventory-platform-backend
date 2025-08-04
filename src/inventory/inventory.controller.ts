@@ -405,6 +405,7 @@ export class InventoryController {
   }
 
   @Post('order-confirmation')
+  @Public()
   @ApiOperation({
     summary: 'Confirm order and update inventory quantity',
     description: `

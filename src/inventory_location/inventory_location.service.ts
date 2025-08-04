@@ -232,6 +232,7 @@ export class InventoryLocationService {
         userName: req.user.fullName,
         ipAddress: req?.ip,
         userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
       };
 
       try {
@@ -718,6 +719,7 @@ export class InventoryLocationService {
         userName: req.user.fullName,
         ipAddress: req?.ip,
         userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
       };
       try {
         // Log inventory location operation

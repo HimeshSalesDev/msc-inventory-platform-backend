@@ -9,7 +9,7 @@ import {
   UserLogoutEvent,
   InventoryLocationCreatedEvent,
   InventoryLocationUpdatedEvent,
-} from '../events/audit.events';
+} from './events/audit.events';
 import { AuditLogType } from 'src/entities/auditLog.entity';
 
 export interface RequestContext {
@@ -17,6 +17,7 @@ export interface RequestContext {
   userName: string;
   ipAddress?: string;
   userAgent?: string;
+  controllerPath?: string;
 }
 
 @Injectable()
@@ -62,6 +63,7 @@ export class AuditEventService {
       inventoryId,
       context.ipAddress,
       context.userAgent,
+      context.controllerPath,
     );
     this.emitAuditEvent(event);
   }
@@ -80,6 +82,7 @@ export class AuditEventService {
       inventoryId,
       context.ipAddress,
       context.userAgent,
+      context.controllerPath,
     );
     this.emitAuditEvent(event);
   }
@@ -96,6 +99,7 @@ export class AuditEventService {
       inventoryId,
       context.ipAddress,
       context.userAgent,
+      context.controllerPath,
     );
     this.emitAuditEvent(event);
   }
@@ -112,6 +116,7 @@ export class AuditEventService {
       inventoryLocationId,
       context.ipAddress,
       context.userAgent,
+      context.controllerPath,
     );
     this.emitAuditEvent(event);
   }
@@ -130,6 +135,7 @@ export class AuditEventService {
       inventoryLocationId,
       context.ipAddress,
       context.userAgent,
+      context.controllerPath,
     );
     this.emitAuditEvent(event);
   }
@@ -149,6 +155,7 @@ export class AuditEventService {
       userAgent?: string;
       isLogWithoutData?: boolean;
     },
+    controllerPath?: string,
   ): void {
     const event = new AuditEvent(
       userId,
@@ -162,6 +169,7 @@ export class AuditEventService {
       options?.ipAddress,
       options?.userAgent,
       options?.isLogWithoutData,
+      controllerPath,
     );
     this.emitAuditEvent(event);
   }

@@ -10,7 +10,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { UsersModule } from 'src/users/users.module';
 import { AuditEventService } from './audit-event.service';
-import { AuditListener } from 'src/listeners/audit.listener';
+import { AuditListener } from 'src/audit-log/listeners/audit.listener';
 
 @Module({
   imports: [

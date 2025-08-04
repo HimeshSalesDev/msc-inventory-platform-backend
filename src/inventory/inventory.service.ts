@@ -165,6 +165,7 @@ export class InventoryService {
         userName: req.user.fullName,
         ipAddress: req?.ip,
         userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
       };
       this.auditEventService.emitInventoryCreated(
         requestContext,
@@ -218,6 +219,7 @@ export class InventoryService {
         userName: req.user.fullName,
         ipAddress: req?.ip,
         userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
       };
       this.auditEventService.emitInventoryUpdated(
         requestContext,
@@ -244,6 +246,7 @@ export class InventoryService {
         userName: req.user.fullName,
         ipAddress: req?.ip,
         userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
       };
       this.auditEventService.emitInventoryDeleted(
         requestContext,
@@ -511,7 +514,7 @@ export class InventoryService {
         );
 
         this.logger.log(
-          `Order confirmation successful for SKU: ${sku} | Quantity: ${qty} | Updated Rows: ${updatedRows.affected}`,
+          `Order confirmation successful for SKU: ${sku} | Quantity: ${qty} | Previous In Hand/Allocated QTY: ${inHandQty}/${allocatedQuantity} | Updated In Hand/Allocated QTY: ${updatedInHand}/${updatedAllocated}`,
         );
 
         return {
