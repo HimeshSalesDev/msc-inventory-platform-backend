@@ -630,6 +630,7 @@ export class InventoryLocationService {
       inventory = queryRunner.manager.create(Inventory, {
         sku,
         quantity: '0', // Will be updated after location creation
+        inHandQuantity: '0',
         length: productInfo.length,
         skirt: productInfo.skirtLength,
         foamDensity: productInfo.foam,
@@ -702,9 +703,15 @@ export class InventoryLocationService {
         inventory.id,
       );
 
-    // Update inventory total quantity
+    // Calculate new inHandQuantity by adding received quantity to existing inHandQuantity
+    const currentInHandQuantity = BigInt(inventory.inHandQuantity || '0');
+    const addQuantity = BigInt(quantity);
+    const newInHandQuantity = currentInHandQuantity + addQuantity;
+
+    // Update inventory total quantity and inHandQuantity
     await queryRunner.manager.update(Inventory, inventory.id, {
       quantity: totalQuantity,
+      inHandQuantity: newInHandQuantity.toString(),
     });
 
     // Get updated inventory for audit

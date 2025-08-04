@@ -410,7 +410,6 @@ export class InventoryService {
         });
 
         mappedData['inHandQuantity'] = mappedData.quantity;
-        mappedData['allocatedQuantity'] = mappedData.quantity;
 
         let result;
 
