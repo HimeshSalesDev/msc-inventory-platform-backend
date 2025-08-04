@@ -1,0 +1,33 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { Expose } from 'class-transformer';
+
+export class InventoryReferenceResponseDto {
+  @ApiProperty({ example: 'GRN', description: 'Type of the reference' })
+  @Expose()
+  type: string;
+
+  @ApiProperty({ example: 'REF-123456', description: 'Reference number' })
+  @Expose()
+  number: string;
+
+  @ApiProperty({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'Inventory ID',
+  })
+  @Expose()
+  inventoryId: string;
+
+  @ApiProperty({
+    description: 'Date when the record was created',
+    example: '2024-01-15T10:30:00Z',
+  })
+  @Expose()
+  createdAt: Date;
+
+  @ApiProperty({
+    description: 'Date when the record was last updated',
+    example: '2024-01-15T10:30:00Z',
+  })
+  @Expose()
+  updatedAt: Date;
+}

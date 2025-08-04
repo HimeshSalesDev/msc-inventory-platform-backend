@@ -9,7 +9,7 @@ import { UserRole } from '../enums/roles.enum';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { ConfigService } from '@nestjs/config';
-import { AuditLogService } from 'src/audit-log/audit-log.service';
+import { AuditEventService } from 'src/audit-log/audit-event.service';
 
 @Injectable()
 export class AuthService {
@@ -17,7 +17,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private readonly auditLogService: AuditLogService,
+    private auditEventService: AuditEventService,
   ) {}
 
   private async validateUser(email: string, pass: string) {
@@ -58,7 +58,7 @@ export class AuthService {
     );
 
     if (user.id) {
-      await this.auditLogService.logLogin(
+      this.auditEventService.emitLoginEvent(
         user.id,
         user.fullName,
         req?.ip,
@@ -89,7 +89,7 @@ export class AuthService {
     );
 
     if (user.id) {
-      await this.auditLogService.logLogin(
+      this.auditEventService.emitLoginEvent(
         user.id,
         user.fullName,
         req?.ip,

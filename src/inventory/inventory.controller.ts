@@ -15,6 +15,7 @@ import {
   NotFoundException,
   UseInterceptors,
   UploadedFile,
+  Param,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,6 +26,10 @@ import {
   ApiResponse,
   ApiBody,
   ApiConsumes,
+  ApiParam,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+  ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
@@ -37,6 +42,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../enums/roles.enum';
 import { Inventory } from 'src/entities/inventory.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { FindQuantityBySkuDto } from './dto/find-quantity-by-sku.dto';
+import { Public } from 'src/auth/decorators/public.decorator';
+import { OrderConfirmationDto } from './dto/order-confirmation.dto';
+import { OrderConfirmationResponseDto } from './dto/order-confirmation-response.dto';
 
 @ApiTags('inventory')
 @Controller('inventory')
@@ -95,6 +104,7 @@ export class InventoryController {
   })
   async create(
     @Body() createInventoryDto: CreateInventoryDto,
+    @Request() req: Request,
   ): Promise<Inventory> {
     try {
       // Validate required fields
@@ -107,7 +117,7 @@ export class InventoryController {
         throw new BadRequestException('Required fields are missing.');
       }
 
-      return await this.inventoryService.create(createInventoryDto);
+      return await this.inventoryService.create(createInventoryDto, req);
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -201,13 +211,14 @@ export class InventoryController {
   })
   async delete(
     @Body() body: { id: string },
+    @Request() req: Request,
   ): Promise<{ success: boolean; message: string }> {
     try {
       if (!body.id) {
         throw new BadRequestException('Inventory ID is required');
       }
 
-      await this.inventoryService.delete(body.id);
+      await this.inventoryService.delete(body.id, req);
       return { success: true, message: 'Inventory deleted' };
     } catch (error) {
       if (
@@ -366,5 +377,76 @@ export class InventoryController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Get('inhand-quantity/:sku')
+  @Public()
+  @ApiOperation({ summary: 'Get inventory in-hand quantity by SKU' })
+  @ApiParam({
+    name: 'sku',
+    description: 'Unique SKU of the inventory item',
+    example: 'SKU-001',
+    required: true,
+  })
+  @ApiOkResponse({
+    type: [Inventory],
+    description: 'Returns the available in-hand quantity for the provided SKU',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid SKU format or missing SKU parameter',
+  })
+  @ApiNotFoundResponse({
+    description: 'Inventory record not found for the given SKU',
+  })
+  async findQuantityBySKU(
+    @Param() queryDto: FindQuantityBySkuDto,
+  ): Promise<Inventory[]> {
+    return await this.inventoryService.findQuantityBySKU(queryDto.sku);
+  }
+
+  @Post('order-confirmation')
+  @Public()
+  @ApiOperation({
+    summary: 'Confirm order and update inventory quantity',
+    description: `
+    This endpoint is used to confirm an order by SKU and adjust the inventory quantity.
+    - Validates the SKU
+    - Deducts or updates the quantity
+    - Returns confirmation with updated row count
+  `,
+  })
+  @ApiBody({
+    type: OrderConfirmationDto,
+    description: 'Order confirmation payload containing SKU and quantity',
+  })
+  @ApiOkResponse({
+    description: 'Order confirmed and inventory updated successfully',
+    type: OrderConfirmationResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input (missing or malformed SKU/quantity)',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'array', items: { type: 'string' } },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Internal server error',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 500 },
+        message: { type: 'string', example: 'Failed to confirm order' },
+      },
+    },
+  })
+  async orderConfirmation(
+    @Body() orderConfirmationDto: OrderConfirmationDto,
+  ): Promise<OrderConfirmationResponseDto> {
+    return await this.inventoryService.orderConfirmation(orderConfirmationDto);
   }
 }

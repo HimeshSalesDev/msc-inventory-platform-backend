@@ -22,7 +22,8 @@ import {
   REQUIRED_FIELDS,
 } from 'src/constants/csv';
 import { normalizeKey } from 'src/lib/stringUtils';
-import { AuditLogService } from 'src/audit-log/audit-log.service';
+import { OrderConfirmationDto } from './dto/order-confirmation.dto';
+import { AuditEventService } from 'src/audit-log/audit-event.service';
 
 @Injectable()
 export class InventoryService {
@@ -31,8 +32,7 @@ export class InventoryService {
   constructor(
     @InjectRepository(Inventory)
     private inventoryRepository: Repository<Inventory>,
-
-    private readonly auditLogService: AuditLogService,
+    private auditEventService: AuditEventService,
   ) {}
 
   async findAll(queryDto: QueryInventoryDto): Promise<Inventory[]> {
@@ -133,7 +133,10 @@ export class InventoryService {
     return await queryBuilder.getMany();
   }
 
-  async create(createInventoryDto: CreateInventoryDto): Promise<Inventory> {
+  async create(
+    createInventoryDto: CreateInventoryDto,
+    req: any,
+  ): Promise<Inventory> {
     // Check for duplicate SKU
     const existing = await this.inventoryRepository.findOne({
       where: { sku: createInventoryDto.sku },
@@ -154,7 +157,24 @@ export class InventoryService {
       inHandQuantity: createInventoryDto.quantity || null,
     });
 
-    return await this.inventoryRepository.save(inventory);
+    const createdInventory = await this.inventoryRepository.save(inventory);
+
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+      this.auditEventService.emitInventoryCreated(
+        requestContext,
+        createdInventory,
+        createdInventory.id,
+      );
+    }
+
+    return createdInventory;
   }
 
   async update(updateInventoryDto: UpdateInventoryDto, req: any) {
@@ -194,20 +214,24 @@ export class InventoryService {
 
     // Log inventory update with before/after data
     if (req?.user?.id) {
-      await this.auditLogService.logInventoryUpdate(
-        req.user.id,
-        req.user.fullName,
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+      this.auditEventService.emitInventoryUpdated(
+        requestContext,
         existing,
         updatedInventory,
         id,
-        req?.ip,
-        req?.get('User-Agent'),
       );
     }
     return updated;
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, req: any): Promise<void> {
     const existing = await this.inventoryRepository.findOne({ where: { id } });
 
     if (!existing) {
@@ -215,6 +239,21 @@ export class InventoryService {
     }
 
     await this.inventoryRepository.delete(id);
+
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+      this.auditEventService.emitInventoryDeleted(
+        requestContext,
+        existing,
+        existing.id,
+      );
+    }
   }
 
   async previewCsv(csvContent: string, filename: string): Promise<any> {
@@ -412,5 +451,77 @@ export class InventoryService {
       failures: failedImports,
       importedItems: successfulImports,
     };
+  }
+
+  async findQuantityBySKU(sku: string): Promise<Inventory[]> {
+    // Validate SKU input
+    if (!sku || typeof sku !== 'string' || !sku.trim()) {
+      throw new BadRequestException('SKU must be a non-empty string.');
+    }
+
+    const queryBuilder =
+      this.inventoryRepository.createQueryBuilder('inventory');
+
+    // Apply filters
+    if (sku) {
+      queryBuilder.andWhere('inventory.sku LIKE :sku', { sku: `${sku}%` });
+    }
+
+    return await queryBuilder.getMany();
+  }
+
+  async orderConfirmation(payload: OrderConfirmationDto) {
+    const { qty, sku } = payload;
+
+    return await this.inventoryRepository.manager.transaction(
+      async (transactionalEntityManager) => {
+        const inventory = await transactionalEntityManager
+          .createQueryBuilder(Inventory, 'inventory') // Use entity class
+          .where('inventory.sku = :sku', { sku })
+          .setLock('pessimistic_write')
+          .getOne();
+
+        if (!inventory) {
+          throw new NotFoundException('No Inventory Found!');
+        }
+
+        const inHandQty = parseInt(inventory.inHandQuantity || '0');
+        const allocatedQuantity = parseInt(inventory.allocatedQuantity || '0');
+        const parsedQty = parseInt(qty);
+
+        if (isNaN(inHandQty) || isNaN(parsedQty) || isNaN(allocatedQuantity)) {
+          throw new BadRequestException('Invalid quantity values');
+        }
+
+        if (parsedQty <= 0) {
+          throw new BadRequestException('Quantity must be positive');
+        }
+
+        if (parsedQty > inHandQty) {
+          throw new BadRequestException('Qty cant be more than in-hand qty');
+        }
+
+        const updatedInHand = inHandQty - parsedQty;
+        const updatedAllocated = allocatedQuantity + parsedQty;
+
+        const updatedRows = await transactionalEntityManager.update(
+          Inventory,
+          { id: inventory.id },
+          {
+            inHandQuantity: updatedInHand.toString(),
+            allocatedQuantity: updatedAllocated.toString(),
+          },
+        );
+
+        this.logger.log(
+          `Order confirmation successful for SKU: ${sku} | Quantity: ${qty} | Previous In Hand/Allocated QTY: ${inHandQty}/${allocatedQuantity} | Updated In Hand/Allocated QTY: ${updatedInHand}/${updatedAllocated}`,
+        );
+
+        return {
+          status: 'OK',
+          updatedRows: updatedRows.affected,
+        };
+      },
+    );
   }
 }
