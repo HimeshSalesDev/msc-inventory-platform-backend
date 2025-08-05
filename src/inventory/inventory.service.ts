@@ -452,17 +452,35 @@ export class InventoryService {
     };
   }
 
-  async findQuantityBySKU(sku: string): Promise<Inventory[]> {
+  async findQuantityBySKU(sku: string | string[]): Promise<Inventory[]> {
     // Validate SKU input
-    if (!sku || typeof sku !== 'string' || !sku.trim()) {
-      throw new BadRequestException('SKU must be a non-empty string.');
+    if (
+      !sku ||
+      (Array.isArray(sku) && sku.length === 0) ||
+      (typeof sku === 'string' && !sku.trim())
+    ) {
+      throw new BadRequestException(
+        'SKU must be a non-empty string or array of strings.',
+      );
     }
 
     const queryBuilder =
       this.inventoryRepository.createQueryBuilder('inventory');
 
     // Apply filters
-    if (sku) {
+    if (Array.isArray(sku)) {
+      // Filter with multiple `LIKE` conditions using OR
+      const conditions = sku.map(
+        (val, index) => `inventory.sku LIKE :sku${index}`,
+      );
+      const parameters = sku.reduce((acc, val, index) => {
+        acc[`sku${index}`] = `${val}%`;
+        return acc;
+      }, {});
+
+      queryBuilder.andWhere(conditions.join(' OR '), parameters);
+    } else {
+      // Single string
       queryBuilder.andWhere('inventory.sku LIKE :sku', { sku: `${sku}%` });
     }
 

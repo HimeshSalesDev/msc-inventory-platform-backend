@@ -379,29 +379,29 @@ export class InventoryController {
     }
   }
 
-  @Get('inhand-quantity/:sku')
+  @Post('inhand-quantity')
   @Public()
-  @ApiOperation({ summary: 'Get inventory in-hand quantity by SKU' })
-  @ApiParam({
-    name: 'sku',
-    description: 'Unique SKU of the inventory item',
-    example: 'SKU-001',
-    required: true,
+  @ApiOperation({ summary: 'Get inventory in-hand quantity by SKU(s)' })
+  @ApiBody({
+    description:
+      'Provide a single SKU as string or multiple SKUs as an array of strings.',
+    type: FindQuantityBySkuDto,
   })
   @ApiOkResponse({
     type: [Inventory],
-    description: 'Returns the available in-hand quantity for the provided SKU',
+    description:
+      'Returns the available in-hand quantity for the provided SKU(s)',
   })
   @ApiBadRequestResponse({
-    description: 'Invalid SKU format or missing SKU parameter',
+    description: 'Invalid request format or missing SKU(s)',
   })
   @ApiNotFoundResponse({
-    description: 'Inventory record not found for the given SKU',
+    description: 'Inventory record(s) not found for the given SKU(s)',
   })
   async findQuantityBySKU(
-    @Param() queryDto: FindQuantityBySkuDto,
+    @Body() body: FindQuantityBySkuDto,
   ): Promise<Inventory[]> {
-    return await this.inventoryService.findQuantityBySKU(queryDto.sku);
+    return await this.inventoryService.findQuantityBySKU(body.sku);
   }
 
   @Post('order-confirmation')
