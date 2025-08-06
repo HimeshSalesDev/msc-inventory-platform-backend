@@ -187,14 +187,24 @@ export class InventoryLocationService {
     // Validate available quantity
     const currentQuantity = BigInt(inventoryLocation.quantity);
 
+    const allocatedQuantity = BigInt(inventory.allocatedQuantity || '0');
+
     if (removeQuantity > currentQuantity) {
       throw new BadRequestException(
         `Cannot remove ${quantity} units. Only ${currentQuantity.toString()} units available in this location.`,
       );
     }
 
+    if (removeQuantity > allocatedQuantity) {
+      throw new BadRequestException(
+        `Cannot remove quantity: ${removeQuantity.toString()} for sku: ${inventory.sku}. Allocated quantity: ${allocatedQuantity.toString()} must be greater than or equal to the removal quantity.`,
+      );
+    }
+
     // Calculate new quantity
     const newQuantity = currentQuantity - removeQuantity;
+
+    const newAllocatedQuantity = allocatedQuantity - removeQuantity;
 
     // Update inventory location
     await queryRunner.manager.update(InventoryLocation, inventoryLocationId, {
@@ -217,6 +227,7 @@ export class InventoryLocationService {
     // Update inventory total quantity
     await queryRunner.manager.update(Inventory, inventory.id, {
       quantity: totalQuantity,
+      allocatedQuantity: newAllocatedQuantity.toString(),
     });
 
     // Get updated inventory for audit

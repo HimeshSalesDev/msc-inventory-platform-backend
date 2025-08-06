@@ -9,7 +9,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as Papa from 'papaparse';
 
-import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { QueryInventoryDto } from './dto/query-inventory.dto';
 
@@ -133,50 +132,6 @@ export class InventoryService {
     return await queryBuilder.getMany();
   }
 
-  async create(
-    createInventoryDto: CreateInventoryDto,
-    req: any,
-  ): Promise<Inventory> {
-    // Check for duplicate SKU
-    const existing = await this.inventoryRepository.findOne({
-      where: { sku: createInventoryDto.sku },
-    });
-
-    if (existing) {
-      throw new ConflictException(
-        `Inventory with SKU "${createInventoryDto.sku}" already exists.`,
-      );
-    }
-
-    const inventory = this.inventoryRepository.create({
-      ...createInventoryDto,
-      width: createInventoryDto.width || null,
-      radius: createInventoryDto.radius || null,
-      quantity: createInventoryDto.quantity || null,
-      allocatedQuantity: createInventoryDto.quantity || null,
-      inHandQuantity: createInventoryDto.quantity || null,
-    });
-
-    const createdInventory = await this.inventoryRepository.save(inventory);
-
-    if (req?.user?.id) {
-      const requestContext = {
-        userId: req.user.id,
-        userName: req.user.fullName,
-        ipAddress: req?.ip,
-        userAgent: req?.get('User-Agent'),
-        controllerPath: req.route?.path || req.originalUrl,
-      };
-      this.auditEventService.emitInventoryCreated(
-        requestContext,
-        createdInventory,
-        createdInventory.id,
-      );
-    }
-
-    return createdInventory;
-  }
-
   async update(updateInventoryDto: UpdateInventoryDto, req: any) {
     const { id, ...updateData } = updateInventoryDto;
 
@@ -186,25 +141,12 @@ export class InventoryService {
       throw new NotFoundException('Inventory item not found');
     }
 
-    // Check for duplicate SKU if SKU is being updated
-    if (updateData.sku && updateData.sku !== existing.sku) {
-      const duplicate = await this.inventoryRepository.findOne({
-        where: { sku: updateData.sku },
-      });
-
-      if (duplicate) {
-        throw new ConflictException(
-          `Inventory with SKU "${updateData.sku}" already exists.`,
-        );
-      }
-    }
-
-    const updated = await this.inventoryRepository.save({
-      ...existing,
-      ...updateData,
-      width: updateData.width || null,
-      radius: updateData.radius || null,
-      quantity: updateData.quantity || null,
+    await this.inventoryRepository.update(id, {
+      vendorDescription: updateData.vendorDescription || null,
+      stripInsert: updateData.stripInsert || null,
+      shape: updateData.shape || null,
+      materialType: updateData.materialType || null,
+      materialColor: updateData.materialColor || null,
       updatedAt: new Date(),
     });
 
@@ -228,32 +170,7 @@ export class InventoryService {
         id,
       );
     }
-    return updated;
-  }
-
-  async delete(id: string, req: any): Promise<void> {
-    const existing = await this.inventoryRepository.findOne({ where: { id } });
-
-    if (!existing) {
-      throw new NotFoundException('Inventory item not found');
-    }
-
-    await this.inventoryRepository.delete(id);
-
-    if (req?.user?.id) {
-      const requestContext = {
-        userId: req.user.id,
-        userName: req.user.fullName,
-        ipAddress: req?.ip,
-        userAgent: req?.get('User-Agent'),
-        controllerPath: req.route?.path || req.originalUrl,
-      };
-      this.auditEventService.emitInventoryDeleted(
-        requestContext,
-        existing,
-        existing.id,
-      );
-    }
+    return updatedInventory;
   }
 
   async previewCsv(csvContent: string, filename: string): Promise<any> {
