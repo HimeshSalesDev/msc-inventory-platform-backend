@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, QueryRunner } from 'typeorm';
+import * as Papa from 'papaparse';
 
 import { CreateInventoryLocationDto } from './dto/create-inventory-location.dto';
 import { UpdateInventoryLocationDto } from './dto/update-inventory-location.dto';
@@ -16,11 +17,11 @@ import { QueryInventoryLocationDto } from './dto/query-inventory-location.dto';
 import {
   FindBySkuOrNumberResponseDto,
   InventoryLocationResponseDto,
+  InventoryLocationWithSkuResponseDto,
 } from './dto/inventory-location-response.dto';
 import { InventoryLocation } from 'src/entities/inventory_location.entity';
 import { Inventory } from 'src/entities/inventory.entity';
 import { parseSKU, validateSKU } from 'src/lib/sku.util';
-import { AuditLogService } from 'src/audit-log/audit-log.service';
 import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
 import { InventoryReference } from 'src/entities/inventory_reference.entity';
 import {
@@ -28,13 +29,24 @@ import {
   RemoveQuantityResponseDto,
 } from './dto/remove-quantity.dto';
 import { AuditEventService } from 'src/audit-log/audit-event.service';
+import {
+  DEFAULT_LOCATION,
+  LOCATION_CSV_FILE_COLUMNS,
+  LOCATION_CSV_PREVIEW_NUMERIC_FIELDS,
+  LOCATION_CSV_REQUIRED_FIELDS,
+  LOCATION_CSV_TO_SQL_KEY_MAP,
+  LOCATION_CSV_VALIDATION_REQUIRED_FIELDS,
+  LOCATION_IMPORT_NUMERIC_FIELDS,
+} from 'src/constants/csv';
+import { normalizeKey } from 'src/lib/stringUtils';
+import { ImportCSVLocationsDto } from './dto/import-csv-location.dto';
 
 type TotalQuantityResult = {
   total: string | null;
 };
 
 type InventoryLocationResponse = {
-  data: InventoryLocationResponseDto[];
+  data: InventoryLocationWithSkuResponseDto[];
   pagination?: {
     page: number;
     limit: number;
@@ -287,7 +299,8 @@ export class InventoryLocationService {
     try {
       const { sku, binNumber, location, page, limit } = queryDto;
 
-      const shouldPaginate = page !== undefined || limit !== undefined;
+      // Only paginate if BOTH page AND limit are provided
+      const shouldPaginate = page !== undefined && limit !== undefined;
       const pageNum = shouldPaginate ? Math.max(parseInt(page) || 1, 1) : 1;
       const limitNum = shouldPaginate
         ? Math.min(parseInt(limit) || 10, 100)
@@ -299,17 +312,19 @@ export class InventoryLocationService {
         .orderBy('il.createdAt', 'DESC');
 
       if (sku) {
-        queryBuilder.andWhere('i.sku ILIKE :sku', { sku: `%${sku.trim()}%` });
+        queryBuilder.andWhere('LOWER(i.sku) LIKE LOWER(:sku)', {
+          sku: `%${sku.trim()}%`,
+        });
       }
 
       if (binNumber) {
-        queryBuilder.andWhere('il.binNumber ILIKE :binNumber', {
+        queryBuilder.andWhere('LOWER(il.binNumber) LIKE LOWER(:binNumber)', {
           binNumber: `%${binNumber.trim()}%`,
         });
       }
 
       if (location) {
-        queryBuilder.andWhere('il.location ILIKE :location', {
+        queryBuilder.andWhere('LOWER(il.location) LIKE LOWER(:location)', {
           location: `%${location.trim()}%`,
         });
       }
@@ -326,16 +341,12 @@ export class InventoryLocationService {
         inventoryLocations = await queryBuilder.getMany();
         total = inventoryLocations.length;
       }
-
+      console.dir({ inventoryLocations: inventoryLocations[0] });
       const responseData = await Promise.all(
         inventoryLocations.map(async (il) => {
-          const totalQuantity = await this.calculateTotalQuantityForInventory(
-            il.inventoryId,
-          );
-          return InventoryLocationResponseDto.fromEntity(
+          return InventoryLocationWithSkuResponseDto.fromEntity(
             il,
-            totalQuantity,
-            il.inventory.sku,
+            il.inventory?.sku || '',
           );
         }),
       );
@@ -344,6 +355,7 @@ export class InventoryLocationService {
         data: responseData,
       };
 
+      // Only include pagination if both page and limit were provided
       if (shouldPaginate && limitNum !== undefined) {
         response.pagination = {
           page: pageNum,
@@ -613,6 +625,443 @@ export class InventoryLocationService {
     }
   }
 
+  async previewCsv(csvContent: string, filename: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvContent, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            this.logger.error('CSV parse errors', results.errors);
+            reject(
+              new BadRequestException({
+                error: 'Failed to parse CSV',
+                details: results.errors,
+              }),
+            );
+            return;
+          }
+
+          const data = results.data as any[];
+
+          // Validate required columns
+          const actualColumns = Object.keys(data[0] || {})
+            .filter((col) => col.trim() !== '')
+            .filter((col) =>
+              LOCATION_CSV_FILE_COLUMNS.some(
+                (allowedCol) => normalizeKey(allowedCol) === normalizeKey(col),
+              ),
+            );
+
+          const normalizedActual = actualColumns.map(normalizeKey);
+
+          const missingColumns = LOCATION_CSV_REQUIRED_FIELDS.filter(
+            (requiredCol) =>
+              !normalizedActual.includes(normalizeKey(requiredCol)),
+          );
+
+          if (missingColumns.length > 0) {
+            reject(
+              new BadRequestException({
+                error: 'Missing required columns',
+                missingColumns,
+                foundColumns: actualColumns,
+              }),
+            );
+            return;
+          }
+
+          // Validate data types and business rules
+          const validationErrors: any[] = [];
+          const validatedData = data.map(
+            (row: Record<string, any>, index: number) => {
+              const errors: string[] = [];
+
+              // Validate required fields
+              for (const field of LOCATION_CSV_VALIDATION_REQUIRED_FIELDS) {
+                const actualKey = Object.keys(row).find(
+                  (col) => normalizeKey(col) === normalizeKey(field),
+                );
+
+                let value = actualKey ? row[actualKey] : undefined;
+                if (field === 'Location' && !actualKey) {
+                  row[field] = DEFAULT_LOCATION;
+                  value = DEFAULT_LOCATION;
+                }
+
+                if (!value?.toString().trim()) {
+                  errors.push(`${field} is required`);
+                }
+              }
+
+              // Validate numeric fields
+              for (const field of LOCATION_CSV_PREVIEW_NUMERIC_FIELDS) {
+                const actualKey = Object.keys(row).find(
+                  (col) => normalizeKey(col) === normalizeKey(field),
+                );
+                const value = actualKey ? row[actualKey] : undefined;
+                if (value && isNaN(parseInt(value))) {
+                  errors.push(`${field} must be a valid number`);
+                }
+                if (parseInt(value) < 0) {
+                  errors.push(`${field} must be a positive number`);
+                }
+              }
+
+              if (errors.length > 0) {
+                validationErrors.push({ row: index + 1, errors });
+              }
+
+              const cleanedRow = Object.fromEntries(
+                Object.entries(row)
+                  .filter(([key]) => key.trim() !== '')
+                  .filter(([key]) =>
+                    LOCATION_CSV_FILE_COLUMNS.some(
+                      (allowedKey) =>
+                        normalizeKey(allowedKey) === normalizeKey(key),
+                    ),
+                  ),
+              );
+
+              return {
+                ...cleanedRow,
+                _rowIndex: index + 1,
+                _hasErrors: errors.length > 0,
+              };
+            },
+          );
+
+          resolve({
+            data: validatedData,
+            totalRows: data.length,
+            validationErrors,
+            columns: Object.keys(validatedData[0] || {})
+              .filter((col) => col.trim() !== '')
+              .filter((col) =>
+                LOCATION_CSV_FILE_COLUMNS.some(
+                  (allowedCol) =>
+                    normalizeKey(allowedCol) === normalizeKey(col),
+                ),
+              ),
+            filename,
+            hasErrors: validationErrors.length > 0,
+          });
+        },
+      });
+    });
+  }
+
+  async importCsv(
+    data: ImportCSVLocationsDto[],
+    filename: string,
+    skipErrors: boolean = false,
+    user: any,
+  ): Promise<any> {
+    const dataToImport = skipErrors
+      ? data.filter((row) => !row._hasErrors)
+      : data;
+
+    if (dataToImport.length === 0) {
+      throw new BadRequestException('No valid data to import');
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    const successfulImports: any[] = [];
+    const failedImports: any[] = [];
+
+    try {
+      // Group data by SKU to handle multiple locations per SKU efficiently
+      const groupedData = this.groupDataBySku(dataToImport);
+
+      for (const [sku, rows] of Object.entries(groupedData)) {
+        try {
+          const results = await this.processBulkInventoryLocations(
+            queryRunner,
+            sku,
+            rows,
+            user,
+          );
+          successfulImports.push(...results);
+        } catch (error) {
+          this.logger.error(`Error processing SKU ${sku}`, {
+            error,
+            filename,
+            sku,
+            rowCount: rows.length,
+            user: user?.email,
+          });
+
+          // Add all rows for this SKU to failed imports
+          failedImports.push(
+            ...rows.map((row) => ({
+              row: row._rowIndex,
+              data: row,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            })),
+          );
+        }
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+
+    return {
+      success: true,
+      filename,
+      totalProcessed: dataToImport.length,
+      imported: successfulImports.length,
+      failed: failedImports.length,
+      failures: failedImports,
+      importedItems: successfulImports,
+    };
+  }
+
+  private groupDataBySku(data: ImportCSVLocationsDto[]): Record<string, any[]> {
+    return data.reduce((acc, row) => {
+      const mappedData = this.mapCsvRowToDto(row);
+      const sku = mappedData.sku;
+
+      if (!acc[sku]) {
+        acc[sku] = [];
+      }
+      acc[sku].push({ ...row, mappedData });
+      return acc;
+    }, {});
+  }
+
+  private mapCsvRowToDto(row: any): any {
+    const mappedData: any = {};
+
+    for (const [csvKey, prismaKey] of Object.entries(
+      LOCATION_CSV_TO_SQL_KEY_MAP,
+    )) {
+      let value = row[csvKey];
+
+      // Convert numeric strings to number values
+      const numberKeys = Object.values(LOCATION_CSV_TO_SQL_KEY_MAP).filter(
+        (key) => LOCATION_IMPORT_NUMERIC_FIELDS.includes(key),
+      );
+
+      if (numberKeys.includes(prismaKey)) {
+        value = value ? parseFloat(value) : null;
+      }
+
+      mappedData[prismaKey] = value || null;
+    }
+
+    return mappedData;
+  }
+
+  private async processBulkInventoryLocations(
+    queryRunner: QueryRunner,
+    sku: string,
+    rows: any[],
+    user: any,
+  ): Promise<any[]> {
+    let isNewInventory = false;
+    let originalInventoryData: Inventory = null;
+    const results: any[] = [];
+
+    // Create request context for audit logging
+    const requestContext = user
+      ? {
+          userId: user.id,
+          userName: user.fullName,
+          ipAddress: user.ipAddress,
+          userAgent: user.userAgent,
+          controllerPath: '/inventory-location/bulk-import',
+        }
+      : null;
+
+    // Find or create inventory with lock
+    let inventory = await queryRunner.manager.findOne(Inventory, {
+      where: { sku },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    if (!inventory) {
+      if (!validateSKU(sku)) {
+        throw new BadRequestException(`Invalid SKU format: ${sku}`);
+      }
+
+      const productInfo = parseSKU(sku);
+      inventory = queryRunner.manager.create(Inventory, {
+        sku,
+        quantity: '0',
+        inHandQuantity: '0',
+        vendorDescription: productInfo.description || '',
+        length: productInfo.length,
+        skirt: productInfo.skirtLength,
+        foamDensity: productInfo.foam,
+        width: productInfo.width,
+        radius: productInfo.radius,
+        taper: productInfo.taper,
+        materialNumber: productInfo.colorCode
+          ? productInfo.colorCode.toString()
+          : null,
+        materialColor: productInfo.colorName,
+      });
+      inventory = await queryRunner.manager.save(Inventory, inventory);
+      isNewInventory = true;
+    } else {
+      // Store original inventory data for audit
+      originalInventoryData = { ...inventory };
+    }
+
+    let totalQuantityToAdd = BigInt(0);
+
+    // Process each location for this SKU
+    for (const row of rows) {
+      const { mappedData } = row;
+      const { binNumber, location, quantity } = mappedData;
+
+      let isNewLocation = false;
+      let originalLocationData: InventoryLocation = null;
+
+      // Check if location already exists for this inventory and bin
+      const existingLocation = await queryRunner.manager.findOne(
+        InventoryLocation,
+        {
+          where: {
+            inventoryId: inventory.id,
+            binNumber: binNumber,
+            location,
+          },
+          lock: { mode: 'pessimistic_write' },
+        },
+      );
+
+      let inventoryLocation: InventoryLocation;
+
+      if (existingLocation) {
+        // Store original location data for audit
+        originalLocationData = { ...existingLocation };
+
+        // Update existing location - add quantities
+        const oldQuantity = BigInt(existingLocation.quantity);
+        const addQuantity = BigInt(quantity);
+        const newQuantity = oldQuantity + addQuantity;
+
+        await queryRunner.manager.update(
+          InventoryLocation,
+          existingLocation.id,
+          {
+            location,
+            quantity: newQuantity.toString(),
+          },
+        );
+
+        inventoryLocation = await queryRunner.manager.findOne(
+          InventoryLocation,
+          {
+            where: { id: existingLocation.id },
+          },
+        );
+      } else {
+        // Create new location
+        inventoryLocation = queryRunner.manager.create(InventoryLocation, {
+          inventoryId: inventory.id,
+          binNumber: binNumber,
+          location,
+          quantity,
+        });
+        inventoryLocation = await queryRunner.manager.save(
+          InventoryLocation,
+          inventoryLocation,
+        );
+        isNewLocation = true;
+      }
+
+      // Add to total quantity for this SKU
+      totalQuantityToAdd += BigInt(quantity);
+
+      // Audit logging for location operations
+      if (requestContext) {
+        try {
+          if (isNewLocation) {
+            this.auditEventService.emitInventoryLocationCreated(
+              requestContext,
+              inventoryLocation,
+              inventoryLocation.id,
+            );
+          } else {
+            this.auditEventService.emitInventoryLocationUpdated(
+              requestContext,
+              originalLocationData,
+              inventoryLocation,
+              inventoryLocation.id,
+            );
+          }
+        } catch (auditError) {
+          this.logger.error('Error creating location audit logs:', auditError);
+        }
+      }
+
+      results.push({
+        ...row,
+        inventoryLocation,
+        inventoryId: inventory.id,
+      });
+    }
+
+    // Calculate total quantity across all locations for this inventory
+    const totalQuantity =
+      await this.calculateTotalQuantityForInventoryWithQueryRunner(
+        queryRunner,
+        inventory.id,
+      );
+
+    // Calculate new inHandQuantity by adding received quantity to existing inHandQuantity
+    const currentInHandQuantity = BigInt(inventory.inHandQuantity || '0');
+    const newInHandQuantity = currentInHandQuantity + totalQuantityToAdd;
+
+    // Update inventory total quantity and inHandQuantity
+    await queryRunner.manager.update(Inventory, inventory.id, {
+      quantity: totalQuantity,
+      inHandQuantity: newInHandQuantity.toString(),
+    });
+
+    // Get updated inventory for audit
+    const updatedInventory = await queryRunner.manager.findOne(Inventory, {
+      where: { id: inventory.id },
+    });
+
+    // Audit logging for inventory operations
+    if (requestContext) {
+      try {
+        if (isNewInventory) {
+          this.auditEventService.emitInventoryCreated(
+            requestContext,
+            updatedInventory,
+            inventory.id,
+          );
+        } else {
+          // Only log inventory update if quantity actually changed
+          if (originalInventoryData.quantity !== updatedInventory.quantity) {
+            this.auditEventService.emitInventoryUpdated(
+              requestContext,
+              originalInventoryData,
+              updatedInventory,
+              inventory.id,
+            );
+          }
+        }
+      } catch (auditError) {
+        this.logger.error('Error creating inventory audit logs:', auditError);
+      }
+    }
+
+    return results;
+  }
+
   private async createOrUpdateInventoryLocation(
     queryRunner: QueryRunner,
     createDto: CreateInventoryLocationDto,
@@ -642,6 +1091,7 @@ export class InventoryLocationService {
         sku,
         quantity: '0', // Will be updated after location creation
         inHandQuantity: '0',
+        vendorDescription: productInfo.description || '',
         length: productInfo.length,
         skirt: productInfo.skirtLength,
         foamDensity: productInfo.foam,

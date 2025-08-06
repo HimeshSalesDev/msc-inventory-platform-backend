@@ -23,6 +23,7 @@ export interface ParsedSKU {
   foam?: number | null; // like "1.5"
   colorCode?: ColorCode;
   colorName?: ColorType | null;
+  description?: string;
 }
 
 export interface DimCAndSkirt {
@@ -222,6 +223,21 @@ function parseSKU(sku: string): ParsedSKU | null {
         result.colorName = colorName;
       }
     }
+
+    const descParts: string[] = [];
+
+    descParts.push('My Spa Cover');
+
+    if (result.colorName) descParts.push(result.colorName);
+    if (result.length) descParts.push(`${result.length}`);
+    if (result.width) descParts.push(`x ${result.width}`);
+    if (result.radius) descParts.push(`x ${result.radius}`);
+    if (result.skirtLength) descParts.push(`x ${result.skirtLength}`);
+
+    result.description = descParts
+      .join(' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
 
     return result;
   } catch (error) {

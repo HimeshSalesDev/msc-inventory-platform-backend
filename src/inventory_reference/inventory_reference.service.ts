@@ -84,6 +84,8 @@ export class InventoryReferenceService {
       inventory = queryRunner.manager.create(Inventory, {
         sku,
         quantity: '0', // Will be updated after location creation
+        inHandQuantity: '0',
+        vendorDescription: productInfo.description || '',
         length: productInfo.length,
         skirt: productInfo.skirtLength,
         foamDensity: productInfo.foam,

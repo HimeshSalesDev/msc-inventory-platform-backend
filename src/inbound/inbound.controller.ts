@@ -2,8 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
   Body,
   Query,
   UseGuards,
@@ -12,7 +10,6 @@ import {
   HttpException,
   BadRequestException,
   ConflictException,
-  NotFoundException,
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
@@ -37,7 +34,6 @@ import { InboundService } from './inbound.service';
 import { Inbound } from 'src/entities/inbound.entity';
 import { QueryInboundDto } from './dto/query-inbound.dto';
 import { CreateInboundDto } from './dto/create-inbound.dto';
-import { UpdateInboundDto } from './dto/update-inbound.dto';
 
 @ApiTags('inbound')
 @Controller('inbound')

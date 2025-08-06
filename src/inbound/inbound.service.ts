@@ -259,21 +259,8 @@ export class InboundService {
           mappedData[entityKey] = value || null;
         }
 
-        const existing = await this.inboundRepo.findOne({
-          where: { poNumber: mappedData.poNumber },
-        });
-
-        let result;
-        if (existing) {
-          result = await this.inboundRepo.save({
-            ...existing,
-            ...mappedData,
-            updatedAt: new Date(),
-          });
-        } else {
-          const inbound = this.inboundRepo.create(mappedData);
-          result = await this.inboundRepo.save(inbound);
-        }
+        const inbound = this.inboundRepo.create(mappedData);
+        const result = await this.inboundRepo.save(inbound);
 
         successfulImports.push(result);
       } catch (error) {
