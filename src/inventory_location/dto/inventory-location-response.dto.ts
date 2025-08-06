@@ -26,6 +26,27 @@ export class InventoryLocationBasicDto {
   updatedAt: Date;
 }
 
+export class InventoryLocationWithSkuResponseDto extends InventoryLocationBasicDto {
+  @ApiProperty({ description: 'Stock Keeping Unit' })
+  sku: string;
+
+  static fromEntity(
+    inventoryLocation: InventoryLocation,
+    sku: string,
+  ): InventoryLocationWithSkuResponseDto {
+    return {
+      id: inventoryLocation.id,
+      inventoryId: inventoryLocation.inventoryId,
+      sku,
+      binNumber: inventoryLocation.binNumber,
+      location: inventoryLocation.location,
+      quantity: inventoryLocation.quantity,
+      createdAt: inventoryLocation.createdAt,
+      updatedAt: inventoryLocation.updatedAt,
+    };
+  }
+}
+
 export class InventoryLocationResponseDto {
   @ApiProperty({
     description: 'Unique identifier for the inventory location record',

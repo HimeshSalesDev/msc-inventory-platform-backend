@@ -1,8 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, Length, IsNumberString } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  Length,
+  IsNumberString,
+  IsBoolean,
+  IsOptional,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
-export class CreateInventoryLocationDto {
+export class ImportCSVLocationsDto {
   @ApiProperty({
     description: 'Stock Keeping Unit - unique identifier for the product',
     example: 'SKU-001',
@@ -12,7 +19,7 @@ export class CreateInventoryLocationDto {
   @IsNotEmpty({ message: 'SKU is required' })
   @Length(1, 255, { message: 'SKU must be between 1 and 255 characters' })
   @Transform(({ value }: { value: string }) => value?.trim())
-  sku: string;
+  SKU: string;
 
   @ApiProperty({
     description: 'Bin number where the inventory is stored',
@@ -22,7 +29,7 @@ export class CreateInventoryLocationDto {
   @IsString()
   @IsNotEmpty({ message: 'Bin number is required' })
   @Transform(({ value }: { value: string }) => value?.trim())
-  binNumber: string;
+  'Bin Number': string;
 
   @ApiProperty({
     description: 'Physical location or warehouse section',
@@ -33,7 +40,7 @@ export class CreateInventoryLocationDto {
   @IsNotEmpty({ message: 'Location is required' })
   @Length(1, 200, { message: 'Location must be between 1 and 200 characters' })
   @Transform(({ value }: { value: string }) => value?.trim())
-  location: string;
+  Location: string;
 
   @ApiProperty({
     description: 'Quantity to add/update in this location',
@@ -49,5 +56,9 @@ export class CreateInventoryLocationDto {
     }
     return val;
   })
-  quantity: string;
+  Quantity: string;
+
+  @IsBoolean()
+  @IsOptional()
+  _hasErrors?: boolean;
 }
