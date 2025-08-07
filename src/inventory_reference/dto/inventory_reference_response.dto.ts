@@ -11,11 +11,11 @@ export class InventoryReferenceResponseDto {
   number: string;
 
   @ApiProperty({
-    example: '550e8400-e29b-41d4-a716-446655440000',
-    description: 'Inventory ID',
+    example: 'sku',
+    description: 'sku',
   })
   @Expose()
-  inventoryId: string;
+  sku: string;
 
   @ApiProperty({
     description: 'Date when the record was created',

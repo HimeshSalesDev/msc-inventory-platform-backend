@@ -2,15 +2,19 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  ManyToOne,
-  JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
   Index,
 } from 'typeorm';
-import { Inventory } from './inventory.entity';
+
 import { ApiProperty } from '@nestjs/swagger';
 
+export enum InventoryReferenceStatus {
+  CREATED = 'CREATED',
+  DELIVERED = 'DELIVERED',
+  IN_TRANSIT = 'IN_TRANSIT',
+  CANCELLED = 'CANCELLED',
+}
 @Entity()
 export class InventoryReference {
   @PrimaryGeneratedColumn('uuid')
@@ -30,9 +34,13 @@ export class InventoryReference {
   })
   number: string;
 
-  @Column({ type: 'uuid' })
-  @Index('idx_inventory_reference_inventory_id')
-  inventoryId: string;
+  @ApiProperty({
+    description: 'Stock Keeping Unit',
+    example: 'SKU-001',
+  })
+  @Column({ type: 'varchar', length: 255 })
+  @Index('idx_inventory_reference_sku')
+  sku: string;
 
   @ApiProperty({
     description: 'Date when the record was created',
@@ -49,10 +57,14 @@ export class InventoryReference {
   updatedAt: Date;
 
   @ApiProperty({
-    description: 'Reference to the inventory item',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'Status of the inventory reference',
+    enum: InventoryReferenceStatus,
+    example: InventoryReferenceStatus.CREATED,
   })
-  @ManyToOne(() => Inventory, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'inventoryId' })
-  inventory: Inventory;
+  @Column({
+    type: 'enum',
+    enum: InventoryReferenceStatus,
+    default: InventoryReferenceStatus.CREATED,
+  })
+  status: InventoryReferenceStatus;
 }

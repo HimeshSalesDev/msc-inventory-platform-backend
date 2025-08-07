@@ -123,7 +123,7 @@ export class InventoryReferenceService {
       InventoryReference,
       {
         where: {
-          inventoryId: inventory.id,
+          sku: inventory.sku,
           number: number,
           type: type,
         },
@@ -170,7 +170,7 @@ export class InventoryReferenceService {
       try {
         // Create new Reference
         inventoryReference = queryRunner.manager.create(InventoryReference, {
-          inventoryId: inventory.id,
+          sku: inventory.sku,
           type: type,
           number: number,
         });
@@ -189,7 +189,7 @@ export class InventoryReferenceService {
             InventoryReference,
             {
               where: {
-                inventoryId: inventory.id,
+                sku: inventory.sku,
                 number: number,
                 type: type,
               },
