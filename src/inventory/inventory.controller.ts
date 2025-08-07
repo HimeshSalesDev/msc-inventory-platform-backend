@@ -11,6 +11,7 @@ import {
   HttpException,
   BadRequestException,
   NotFoundException,
+  Param,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,6 +23,7 @@ import {
   ApiBadRequestResponse,
   ApiNotFoundResponse,
   ApiInternalServerErrorResponse,
+  ApiParam,
 } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 
@@ -67,9 +69,61 @@ export class InventoryController {
     try {
       const items = await this.inventoryService.findAll(queryDto);
       return { items };
-    } catch (error) {
+    } catch {
       throw new HttpException(
         'Failed to fetch inventory',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('by-sku/:sku')
+  @Roles(UserRole.ADMIN, UserRole.INVENTORY_MANAGER, UserRole.MOBILE_APP)
+  @ApiOperation({
+    summary:
+      'Get a single inventory item by SKU with its locations and references',
+  })
+  @ApiParam({
+    name: 'sku',
+    description: 'Stock Keeping Unit identifier for the inventory item',
+    example: 'E4E4-85-M1',
+    type: 'string',
+  })
+  @ApiOkResponse({
+    type: Inventory,
+    description:
+      'Inventory item successfully retrieved with related inventory locations and references',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid SKU format provided',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inventory item not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Forbidden - Admin, Inventory Manager, or Mobile App role required',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error occurred while fetching inventory item',
+  })
+  async findOneBySku(@Param('sku') sku: string): Promise<{ data: Inventory }> {
+    try {
+      const data = await this.inventoryService.findOneBySku(sku);
+
+      if (!data) {
+        throw new NotFoundException(`Inventory item with SKU ${sku} not found`);
+      }
+
+      return { data };
+    } catch {
+      // Throw generic internal server error for unexpected exceptions
+      throw new HttpException(
+        'Failed to fetch inventory item due to server error',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

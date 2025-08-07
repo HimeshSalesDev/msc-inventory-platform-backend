@@ -5,8 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  OneToMany,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
+import { InventoryLocation } from './inventory_location.entity';
+import { InventoryReference } from './inventory_reference.entity';
 
 @Entity('inventory')
 export class Inventory {
@@ -163,4 +166,15 @@ export class Inventory {
   })
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @OneToMany(() => InventoryLocation, (location) => location.inventory, {
+    cascade: true,
+    eager: false,
+  })
+  @ApiProperty({
+    type: () => [InventoryLocation], // Lazy resolver
+    description: 'List of inventory locations for this inventory item',
+    required: false,
+  })
+  inventoryLocations: InventoryLocation[];
 }
