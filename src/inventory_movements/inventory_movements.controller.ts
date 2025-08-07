@@ -4,20 +4,28 @@ import {
   HttpException,
   HttpStatus,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { InventoryMovementsService } from './inventory_movements.service';
 import { FindOutboundInventoryMovementsDto } from './dto/find-outbound-inventory-movements.dto';
 
 import {
+  ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
   ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { UserRole } from 'src/enums/roles.enum';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
 
+@ApiTags('Inventory Movements')
 @Controller('inventory-movements')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
 export class InventoryMovementsController {
   constructor(
     private readonly inventoryMovementsService: InventoryMovementsService,
