@@ -67,8 +67,16 @@ export class InventoryLocation {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  // Relationship to the main inventory table
-  @ManyToOne(() => Inventory, { onDelete: 'CASCADE' })
+  // Fixed: Using lazy resolver (arrow function)
+  @ManyToOne(() => Inventory, (inventory) => inventory.inventoryLocations, {
+    onDelete: 'CASCADE',
+    eager: false,
+  })
   @JoinColumn({ name: 'inventoryId' })
+  @ApiProperty({
+    type: () => Inventory, // Lazy resolver
+    description: 'The inventory item this location belongs to',
+    required: false,
+  })
   inventory: Inventory;
 }

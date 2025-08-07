@@ -122,6 +122,23 @@ export class InventoryService {
     return await queryBuilder.getMany();
   }
 
+  async findOneBySku(sku: string): Promise<Inventory | null> {
+    try {
+      // Validate SKU parameter
+      if (!sku || typeof sku !== 'string' || sku.trim().length === 0) {
+        throw new BadRequestException('SKU must be a non-empty string');
+      }
+      const trimmedSku = sku.trim();
+
+      return await this.inventoryRepository.findOne({
+        where: { sku: trimmedSku },
+        relations: ['inventoryLocations'],
+      });
+    } catch (error) {
+      throw new Error(`Database operation failed: ${error.message}`);
+    }
+  }
+
   async update(updateInventoryDto: UpdateInventoryDto, req: any) {
     const { id, ...updateData } = updateInventoryDto;
 
