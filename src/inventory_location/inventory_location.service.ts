@@ -1,33 +1,15 @@
 import {
-  Injectable,
-  NotFoundException,
   BadRequestException,
   ConflictException,
+  Injectable,
   InternalServerErrorException,
   Logger,
-  HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, QueryRunner } from 'typeorm';
 import * as Papa from 'papaparse';
+import { DataSource, QueryRunner, Repository } from 'typeorm';
 
-import { CreateInventoryLocationDto } from './dto/create-inventory-location.dto';
-import { UpdateInventoryLocationDto } from './dto/update-inventory-location.dto';
-import { QueryInventoryLocationDto } from './dto/query-inventory-location.dto';
-import {
-  FindBySkuOrNumberResponseDto,
-  InventoryLocationResponseDto,
-  InventoryLocationWithSkuResponseDto,
-} from './dto/inventory-location-response.dto';
-import { InventoryLocation } from 'src/entities/inventory_location.entity';
-import { Inventory } from 'src/entities/inventory.entity';
-import { parseSKU, validateSKU } from 'src/lib/sku.util';
-import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
-import { InventoryReference } from 'src/entities/inventory_reference.entity';
-import {
-  RemoveQuantityDto,
-  RemoveQuantityResponseDto,
-} from './dto/remove-quantity.dto';
 import { AuditEventService } from 'src/audit-log/audit-event.service';
 import {
   DEFAULT_LOCATION,
@@ -38,8 +20,31 @@ import {
   LOCATION_CSV_VALIDATION_REQUIRED_FIELDS,
   LOCATION_IMPORT_NUMERIC_FIELDS,
 } from 'src/constants/csv';
+import { Inventory } from 'src/entities/inventory.entity';
+import { InventoryLocation } from 'src/entities/inventory_location.entity';
+import {
+  InventoryMovement,
+  InventoryMovementTypeEnums,
+} from 'src/entities/inventory_movements.entity';
+import {
+  InventoryReference,
+  InventoryReferenceStatus,
+} from 'src/entities/inventory_reference.entity';
+import { parseSKU, validateSKU } from 'src/lib/sku.util';
 import { normalizeKey } from 'src/lib/stringUtils';
+import { CreateInventoryLocationDto } from './dto/create-inventory-location.dto';
+import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
 import { ImportCSVLocationsDto } from './dto/import-csv-location.dto';
+import {
+  FindBySkuOrNumberResponseDto,
+  InventoryLocationResponseDto,
+  InventoryLocationWithSkuResponseDto,
+} from './dto/inventory-location-response.dto';
+import { QueryInventoryLocationDto } from './dto/query-inventory-location.dto';
+import {
+  RemoveQuantityDto,
+  RemoveQuantityResponseDto,
+} from './dto/remove-quantity.dto';
 
 type TotalQuantityResult = {
   total: string | null;
@@ -151,7 +156,7 @@ export class InventoryLocationService {
     removeDto: RemoveQuantityDto,
     req: any,
   ): Promise<RemoveQuantityResponseDto> {
-    const { inventoryLocationId, quantity } = removeDto;
+    const { inventoryLocationId, quantity, proNumber } = removeDto;
 
     // Validate quantity early
     let removeQuantity: bigint;
@@ -162,6 +167,25 @@ export class InventoryLocationService {
       }
     } catch (error) {
       throw new BadRequestException('Invalid quantity format');
+    }
+
+    const inventoryReference = await queryRunner.manager.findOne(
+      InventoryReference,
+      {
+        where: { number: proNumber },
+      },
+    );
+
+    if (!inventoryReference) {
+      throw new NotFoundException(
+        `Inventory Reference with proNumber ${proNumber} not found`,
+      );
+    }
+
+    if (inventoryReference.status === InventoryReferenceStatus.DELIVERED) {
+      throw new BadRequestException(
+        `Inventory Reference with proNumber ${proNumber} has already been delivered`,
+      );
     }
 
     // Find inventory location with lock
@@ -241,6 +265,27 @@ export class InventoryLocationService {
       quantity: totalQuantity,
       allocatedQuantity: newAllocatedQuantity.toString(),
     });
+
+    // Create inventory movement record for removal
+    const inventoryMovement = queryRunner.manager.create(InventoryMovement, {
+      sku: inventory.sku,
+      type: InventoryMovementTypeEnums.OUT,
+      quantity: parseInt(removeQuantity.toString(), 10),
+      binNumber: inventoryLocation.binNumber,
+      location: inventoryLocation.location,
+      proNumber: proNumber || null,
+      userId: req?.user?.id || null,
+      reason: null,
+    });
+    await queryRunner.manager.save(InventoryMovement, inventoryMovement);
+
+    await queryRunner.manager.update(
+      InventoryReference,
+      inventoryReference.id,
+      {
+        status: InventoryReferenceStatus.DELIVERED,
+      },
+    );
 
     // Get updated inventory for audit
     const updatedInventory = {
@@ -341,7 +386,7 @@ export class InventoryLocationService {
         inventoryLocations = await queryBuilder.getMany();
         total = inventoryLocations.length;
       }
-      console.dir({ inventoryLocations: inventoryLocations[0] });
+
       const responseData = await Promise.all(
         inventoryLocations.map(async (il) => {
           return InventoryLocationWithSkuResponseDto.fromEntity(
@@ -373,254 +418,6 @@ export class InventoryLocationService {
       );
       throw new InternalServerErrorException(
         'Failed to retrieve inventory locations',
-      );
-    }
-  }
-
-  async findOne(id: string): Promise<InventoryLocationResponseDto> {
-    try {
-      const inventoryLocation = await this.inventoryLocationRepository.findOne({
-        where: { id },
-        relations: ['inventory'],
-      });
-
-      if (!inventoryLocation) {
-        throw new NotFoundException(
-          `Inventory location with ID ${id} not found`,
-        );
-      }
-
-      const totalQuantity = await this.calculateTotalQuantityForInventory(
-        inventoryLocation.inventoryId,
-      );
-
-      return InventoryLocationResponseDto.fromEntity(
-        inventoryLocation,
-        totalQuantity,
-        inventoryLocation.inventory.sku,
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to retrieve inventory location: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        'Failed to retrieve inventory location',
-      );
-    }
-  }
-
-  async update(
-    id: string,
-    updateDto: UpdateInventoryLocationDto,
-  ): Promise<InventoryLocationResponseDto> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      // Find existing inventory location with lock
-      const existingLocation = await queryRunner.manager.findOne(
-        InventoryLocation,
-        {
-          where: { id },
-          relations: ['inventory'],
-          lock: { mode: 'pessimistic_write' },
-        },
-      );
-
-      if (!existingLocation) {
-        throw new NotFoundException(
-          `Inventory location with ID ${id} not found`,
-        );
-      }
-
-      // Check for unique constraint violation if binNumber is being updated
-      if (
-        updateDto.binNumber &&
-        updateDto.binNumber !== existingLocation.binNumber
-      ) {
-        const conflictingLocation = await queryRunner.manager.findOne(
-          InventoryLocation,
-          {
-            where: {
-              inventoryId: existingLocation.inventoryId,
-              binNumber: updateDto.binNumber,
-            },
-          },
-        );
-
-        if (conflictingLocation) {
-          throw new ConflictException(
-            `Bin number ${updateDto.binNumber} already exists for this inventory item`,
-          );
-        }
-      }
-
-      const oldQuantity = BigInt(existingLocation.quantity);
-      const newQuantity = updateDto.quantity
-        ? BigInt(updateDto.quantity)
-        : oldQuantity;
-
-      // Update the inventory location
-      await queryRunner.manager.update(InventoryLocation, id, {
-        binNumber: updateDto.binNumber || existingLocation.binNumber,
-        location: updateDto.location || existingLocation.location,
-        quantity: newQuantity.toString(),
-      });
-
-      // Recalculate and update inventory total quantity
-      const totalQuantity =
-        await this.calculateTotalQuantityForInventoryWithQueryRunner(
-          queryRunner,
-          existingLocation.inventoryId,
-        );
-
-      await queryRunner.manager.update(
-        Inventory,
-        existingLocation.inventoryId,
-        {
-          quantity: totalQuantity,
-        },
-      );
-
-      // Get updated record
-      const updatedLocation = await queryRunner.manager.findOne(
-        InventoryLocation,
-        {
-          where: { id },
-          relations: ['inventory'],
-        },
-      );
-
-      await queryRunner.commitTransaction();
-
-      return InventoryLocationResponseDto.fromEntity(
-        updatedLocation,
-        totalQuantity,
-        updatedLocation.inventory.sku,
-      );
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(
-        `Failed to update inventory location: ${error.message}`,
-        error.stack,
-      );
-
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ConflictException
-      ) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        'Failed to update inventory location',
-      );
-    } finally {
-      await queryRunner.release();
-    }
-  }
-
-  async remove(id: string): Promise<void> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const inventoryLocation = await queryRunner.manager.findOne(
-        InventoryLocation,
-        {
-          where: { id },
-          lock: { mode: 'pessimistic_write' },
-        },
-      );
-
-      if (!inventoryLocation) {
-        throw new NotFoundException(
-          `Inventory location with ID ${id} not found`,
-        );
-      }
-
-      const inventoryId = inventoryLocation.inventoryId;
-
-      // Delete the inventory location
-      await queryRunner.manager.delete(InventoryLocation, id);
-
-      // Recalculate and update inventory total quantity
-      const totalQuantity =
-        await this.calculateTotalQuantityForInventoryWithQueryRunner(
-          queryRunner,
-          inventoryId,
-        );
-
-      await queryRunner.manager.update(Inventory, inventoryId, {
-        quantity: totalQuantity,
-      });
-
-      await queryRunner.commitTransaction();
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(
-        `Failed to delete inventory location: ${error.message}`,
-        error.stack,
-      );
-
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        'Failed to delete inventory location',
-      );
-    } finally {
-      await queryRunner.release();
-    }
-  }
-
-  async findBySkuAndBin(
-    sku: string,
-    binNumber: string,
-  ): Promise<InventoryLocationResponseDto | null> {
-    try {
-      const inventory = await this.inventoryRepository.findOne({
-        where: { sku },
-      });
-      if (!inventory) {
-        return null;
-      }
-
-      const inventoryLocation = await this.inventoryLocationRepository.findOne({
-        where: {
-          inventoryId: inventory.id,
-          binNumber: binNumber,
-        },
-        relations: ['inventory'],
-      });
-
-      if (!inventoryLocation) {
-        return null;
-      }
-
-      const totalQuantity = await this.calculateTotalQuantityForInventory(
-        inventory.id,
-      );
-
-      return InventoryLocationResponseDto.fromEntity(
-        inventoryLocation,
-        totalQuantity,
-        sku,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to find inventory location by SKU and bin: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        'Failed to find inventory location',
       );
     }
   }
@@ -824,6 +621,51 @@ export class InventoryLocationService {
     };
   }
 
+  async getLocationBySkuOrPro(
+    payload: GetLocationByNumberOrSkuDto,
+  ): Promise<FindBySkuOrNumberResponseDto> {
+    const { skuOrNumber } = payload;
+
+    if (!skuOrNumber?.trim()) {
+      throw new BadRequestException('SKU or PRO number must be provided.');
+    }
+
+    let inventoryData: Inventory | null = null;
+
+    inventoryData = await this.inventoryRepository.findOne({
+      where: { sku: skuOrNumber },
+    });
+
+    if (!inventoryData) {
+      const inventoryReference = await this.inventoryReference.findOne({
+        where: { number: skuOrNumber },
+        select: ['sku'],
+      });
+
+      if (inventoryReference) {
+        inventoryData = await this.inventoryRepository.findOne({
+          where: { sku: inventoryReference.sku },
+        });
+      }
+    }
+
+    if (!inventoryData) {
+      throw new NotFoundException(
+        `No inventory found for the provided identifier: "${skuOrNumber}".`,
+      );
+    }
+
+    const inventoryLocationData = await this.inventoryLocationRepository.find({
+      where: { inventoryId: inventoryData.id },
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      sku: inventoryData.sku,
+      locations: inventoryLocationData,
+    };
+  }
+
   private groupDataBySku(data: ImportCSVLocationsDto[]): Record<string, any[]> {
     return data.reduce((acc, row) => {
       const mappedData = this.mapCsvRowToDto(row);
@@ -979,6 +821,18 @@ export class InventoryLocationService {
         );
         isNewLocation = true;
       }
+
+      // Create inventory movement record for each location
+      const inventoryMovement = queryRunner.manager.create(InventoryMovement, {
+        sku,
+        type: InventoryMovementTypeEnums.IN,
+        quantity: parseInt(quantity, 10),
+        binNumber,
+        location,
+        userId: user?.id || null,
+        reason: null,
+      });
+      await queryRunner.manager.save(InventoryMovement, inventoryMovement);
 
       // Add to total quantity for this SKU
       totalQuantityToAdd += BigInt(quantity);
@@ -1175,6 +1029,19 @@ export class InventoryLocationService {
       inHandQuantity: newInHandQuantity.toString(),
     });
 
+    // Create inventory movement record
+    const inventoryMovement = queryRunner.manager.create(InventoryMovement, {
+      sku,
+      type: InventoryMovementTypeEnums.IN,
+      quantity: parseInt(quantity, 10),
+      binNumber,
+      location,
+      userId: req?.user?.id || null,
+      reason: null,
+    });
+
+    await queryRunner.manager.save(InventoryMovement, inventoryMovement);
+
     // Get updated inventory for audit
     const updatedInventory = await queryRunner.manager.findOne(Inventory, {
       where: { id: inventory.id },
@@ -1260,343 +1127,5 @@ export class InventoryLocationService {
       .getRawOne<TotalQuantityResult>();
 
     return result?.total ? result.total.toString() : '0';
-  }
-
-  async findLocationsByInventoryId(
-    inventoryId: string,
-    page: number,
-    limit: number,
-  ) {
-    try {
-      const skip = (page - 1) * limit;
-
-      // First check if inventory exists
-      const inventory = await this.inventoryRepository.findOne({
-        where: { id: inventoryId },
-      });
-
-      if (!inventory) {
-        throw new NotFoundException(
-          `Inventory with ID ${inventoryId} not found`,
-        );
-      }
-
-      const [inventoryLocations, total] =
-        await this.inventoryLocationRepository.findAndCount({
-          where: { inventoryId },
-          order: { createdAt: 'DESC' },
-          skip,
-          take: limit,
-        });
-
-      const totalQuantity =
-        await this.calculateTotalQuantityForInventory(inventoryId);
-
-      const responseData = inventoryLocations.map((il) =>
-        InventoryLocationResponseDto.fromEntity(
-          il,
-          totalQuantity,
-          inventory.sku,
-        ),
-      );
-
-      return {
-        data: responseData,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-        summary: {
-          totalQuantity,
-          locationCount: total,
-        },
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to retrieve locations for inventory: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        'Failed to retrieve inventory locations',
-      );
-    }
-  }
-
-  async bulkCreateUpdate(createDtos: CreateInventoryLocationDto[]) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const results = [];
-      let createdCount = 0;
-      let updatedCount = 0;
-
-      for (const dto of createDtos) {
-        const { sku, binNumber, location, quantity } = dto;
-
-        // Find or create inventory with lock
-        let inventory = await queryRunner.manager.findOne(Inventory, {
-          where: { sku },
-          lock: { mode: 'pessimistic_write' },
-        });
-
-        let isNewInventory = false;
-        if (!inventory) {
-          inventory = queryRunner.manager.create(Inventory, {
-            sku,
-            quantity: '0',
-          });
-          inventory = await queryRunner.manager.save(Inventory, inventory);
-          isNewInventory = true;
-        }
-
-        // Check if location exists
-        const existingLocation = await queryRunner.manager.findOne(
-          InventoryLocation,
-          {
-            where: {
-              inventoryId: inventory.id,
-              binNumber: binNumber,
-            },
-            lock: { mode: 'pessimistic_write' },
-          },
-        );
-
-        let inventoryLocation: InventoryLocation;
-        let wasUpdated = false;
-
-        if (existingLocation) {
-          // Update existing location
-          const oldQuantity = BigInt(existingLocation.quantity);
-          const addQuantity = BigInt(quantity);
-          const newQuantity = oldQuantity + addQuantity;
-
-          await queryRunner.manager.update(
-            InventoryLocation,
-            existingLocation.id,
-            {
-              location,
-              quantity: newQuantity.toString(),
-            },
-          );
-
-          inventoryLocation = await queryRunner.manager.findOne(
-            InventoryLocation,
-            {
-              where: { id: existingLocation.id },
-            },
-          );
-          wasUpdated = true;
-          updatedCount++;
-        } else {
-          // Create new location
-          inventoryLocation = queryRunner.manager.create(InventoryLocation, {
-            inventoryId: inventory.id,
-            binNumber: binNumber,
-            location,
-            quantity,
-          });
-          inventoryLocation = await queryRunner.manager.save(
-            InventoryLocation,
-            inventoryLocation,
-          );
-          createdCount++;
-        }
-
-        // Calculate and update total quantity for this inventory
-        const totalQuantity =
-          await this.calculateTotalQuantityForInventoryWithQueryRunner(
-            queryRunner,
-            inventory.id,
-          );
-
-        await queryRunner.manager.update(Inventory, inventory.id, {
-          quantity: totalQuantity,
-        });
-
-        results.push(
-          InventoryLocationResponseDto.fromEntity(
-            inventoryLocation,
-            totalQuantity,
-            sku,
-          ),
-        );
-      }
-
-      await queryRunner.commitTransaction();
-
-      return {
-        statusCode: HttpStatus.CREATED,
-        message: 'Bulk operation completed successfully',
-        data: {
-          processed: createDtos.length,
-          created: createdCount,
-          updated: updatedCount,
-          results,
-        },
-      };
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(`Bulk operation failed: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(
-        'Bulk operation failed - all changes rolled back',
-      );
-    } finally {
-      await queryRunner.release();
-    }
-  }
-
-  async getAnalyticsSummary(sku?: string) {
-    try {
-      const baseQuery = this.inventoryLocationRepository
-        .createQueryBuilder('il')
-        .leftJoinAndSelect('il.inventory', 'i');
-
-      if (sku) {
-        baseQuery.where('i.sku = :sku', { sku });
-      }
-
-      // Get basic counts and totals
-      const totalLocations = await baseQuery.getCount();
-
-      const totalQuantityResult = await baseQuery
-        .select('SUM(CAST(il.quantity AS DECIMAL))', 'total')
-        .getRawOne();
-
-      const totalQuantity = totalQuantityResult?.total
-        ? totalQuantityResult.total.toString()
-        : '0';
-
-      // Get unique inventory items count
-      const uniqueInventoryQuery =
-        this.inventoryRepository.createQueryBuilder('i');
-      if (sku) {
-        uniqueInventoryQuery.where('i.sku = :sku', { sku });
-      }
-      const totalInventoryItems = await uniqueInventoryQuery.getCount();
-
-      // Calculate average quantity per location
-      const averageQuantityPerLocation =
-        totalLocations > 0
-          ? (BigInt(totalQuantity) / BigInt(totalLocations)).toString()
-          : '0';
-
-      // Get top locations by total quantity
-      const topLocationsQuery = this.inventoryLocationRepository
-        .createQueryBuilder('il')
-        .leftJoin('il.inventory', 'i')
-        .select([
-          'il.location as location',
-          'SUM(CAST(il.quantity AS DECIMAL)) as totalQuantity',
-          'COUNT(*) as itemCount',
-        ])
-        .groupBy('il.location')
-        .orderBy('totalQuantity', 'DESC')
-        .limit(10);
-
-      if (sku) {
-        topLocationsQuery.where('i.sku = :sku', { sku });
-      }
-
-      const topLocations = await topLocationsQuery.getRawMany();
-
-      // Get top bins by quantity
-      const topBinsQuery = this.inventoryLocationRepository
-        .createQueryBuilder('il')
-        .leftJoin('il.inventory', 'i')
-        .select([
-          'il.binNumber as binNumber',
-          'il.quantity as totalQuantity',
-          'il.location as location',
-        ])
-        .orderBy('CAST(il.quantity AS DECIMAL)', 'DESC')
-        .limit(10);
-
-      if (sku) {
-        topBinsQuery.where('i.sku = :sku', { sku });
-      }
-
-      const topBins = await topBinsQuery.getRawMany();
-
-      return {
-        statusCode: HttpStatus.OK,
-        message: 'Analytics summary retrieved successfully',
-        data: {
-          totalLocations,
-          totalInventoryItems,
-          totalQuantity,
-          averageQuantityPerLocation,
-          topLocations: topLocations.map((loc) => ({
-            location: loc.location,
-            totalQuantity: loc.totalQuantity?.toString() || '0',
-            itemCount: parseInt(loc.itemCount) || 0,
-          })),
-          topBins: topBins.map((bin) => ({
-            binNumber: bin.binNumber,
-            totalQuantity: bin.totalQuantity?.toString() || '0',
-            location: bin.location,
-          })),
-        },
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to retrieve analytics summary: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        'Failed to retrieve analytics summary',
-      );
-    }
-  }
-
-  async getLocationBySkuOrPro(
-    payload: GetLocationByNumberOrSkuDto,
-  ): Promise<FindBySkuOrNumberResponseDto> {
-    const { skuOrNumber } = payload;
-
-    if (!skuOrNumber?.trim()) {
-      throw new BadRequestException('SKU or PRO number must be provided.');
-    }
-
-    let inventoryData: Inventory | null = null;
-
-    inventoryData = await this.inventoryRepository.findOne({
-      where: { sku: skuOrNumber },
-    });
-
-    if (!inventoryData) {
-      const inventoryReference = await this.inventoryReference.findOne({
-        where: { number: skuOrNumber },
-        select: ['inventoryId'],
-      });
-
-      if (inventoryReference) {
-        inventoryData = await this.inventoryRepository.findOne({
-          where: { id: inventoryReference.inventoryId },
-        });
-      }
-    }
-
-    if (!inventoryData) {
-      throw new NotFoundException(
-        `No inventory found for the provided identifier: "${skuOrNumber}".`,
-      );
-    }
-
-    const inventoryLocationData = await this.inventoryLocationRepository.find({
-      where: { inventoryId: inventoryData.id },
-      order: { createdAt: 'DESC' },
-    });
-
-    return {
-      sku: inventoryData.sku,
-      locations: inventoryLocationData,
-    };
   }
 }

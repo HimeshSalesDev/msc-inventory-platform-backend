@@ -13,6 +13,7 @@ import { InventoryLocationModule } from './inventory_location/inventory_location
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { InventoryReferenceModule } from './inventory_reference/inventory_reference.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { InventoryMovementsModule } from './inventory_movements/inventory_movements.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     InboundModule,
     AuditLogModule,
     InventoryReferenceModule,
+    InventoryMovementsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
