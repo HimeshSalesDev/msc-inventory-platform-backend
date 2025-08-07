@@ -156,7 +156,7 @@ export class InventoryLocationService {
     removeDto: RemoveQuantityDto,
     req: any,
   ): Promise<RemoveQuantityResponseDto> {
-    const { inventoryLocationId, quantity, proNumber } = removeDto;
+    const { inventoryLocationId, quantity } = removeDto;
 
     // Validate quantity early
     let removeQuantity: bigint;
@@ -169,24 +169,24 @@ export class InventoryLocationService {
       throw new BadRequestException('Invalid quantity format');
     }
 
-    const inventoryReference = await queryRunner.manager.findOne(
-      InventoryReference,
-      {
-        where: { number: proNumber },
-      },
-    );
+    // const inventoryReference = await queryRunner.manager.findOne(
+    //   InventoryReference,
+    //   {
+    //     where: { number: proNumber },
+    //   },
+    // );
 
-    if (!inventoryReference) {
-      throw new NotFoundException(
-        `Inventory Reference with proNumber ${proNumber} not found`,
-      );
-    }
+    // if (!inventoryReference) {
+    //   throw new NotFoundException(
+    //     `Inventory Reference with proNumber ${proNumber} not found`,
+    //   );
+    // }
 
-    if (inventoryReference.status === InventoryReferenceStatus.DELIVERED) {
-      throw new BadRequestException(
-        `Inventory Reference with proNumber ${proNumber} has already been delivered`,
-      );
-    }
+    // if (inventoryReference.status === InventoryReferenceStatus.DELIVERED) {
+    //   throw new BadRequestException(
+    //     `Inventory Reference with proNumber ${proNumber} has already been delivered`,
+    //   );
+    // }
 
     // Find inventory location with lock
     const inventoryLocation = await queryRunner.manager.findOne(
@@ -273,19 +273,19 @@ export class InventoryLocationService {
       quantity: parseInt(removeQuantity.toString(), 10),
       binNumber: inventoryLocation.binNumber,
       location: inventoryLocation.location,
-      proNumber: proNumber || null,
+      proNumber: null,
       userId: req?.user?.id || null,
       reason: null,
     });
     await queryRunner.manager.save(InventoryMovement, inventoryMovement);
 
-    await queryRunner.manager.update(
-      InventoryReference,
-      inventoryReference.id,
-      {
-        status: InventoryReferenceStatus.DELIVERED,
-      },
-    );
+    // await queryRunner.manager.update(
+    //   InventoryReference,
+    //   inventoryReference.id,
+    //   {
+    //     status: InventoryReferenceStatus.DELIVERED,
+    //   },
+    // );
 
     // Get updated inventory for audit
     const updatedInventory = {

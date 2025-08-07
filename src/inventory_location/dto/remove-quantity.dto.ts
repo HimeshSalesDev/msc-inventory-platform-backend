@@ -25,13 +25,13 @@ export class RemoveQuantityDto {
   @Transform(({ value }: { value: string }) => value?.trim())
   quantity: string;
 
-  @ApiProperty({
-    description: 'Pro Number',
-    example: 'sh1245',
-  })
-  @IsString({ message: 'proNumber must be a string' })
-  @Transform(({ value }: { value: string }) => value?.trim())
-  proNumber: string;
+  // @ApiProperty({
+  //   description: 'Pro Number',
+  //   example: 'sh1245',
+  // })
+  // @IsString({ message: 'proNumber must be a string' })
+  // @Transform(({ value }: { value: string }) => value?.trim())
+  // proNumber: string;
 }
 
 export class RemoveQuantityResponseDto {
