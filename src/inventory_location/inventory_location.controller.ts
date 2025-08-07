@@ -225,11 +225,11 @@ export class InventoryLocationController {
           example: '10',
           description: 'Quantity to remove (as string to handle large numbers)',
         },
-        proNumber: {
-          type: 'string',
-          example: 'SH1023',
-          description: 'Pro number',
-        },
+        // proNumber: {
+        //   type: 'string',
+        //   example: 'SH1023',
+        //   description: 'Pro number',
+        // },
       },
       required: ['inventoryLocationId', 'quantity'],
     },
