@@ -78,6 +78,7 @@ export class InventoryMovementsController {
   }
 
   @Get('inbound-vs-outbound-summary')
+  @Roles(UserRole.ADMIN, UserRole.INVENTORY_MANAGER)
   @ApiOperation({
     summary: 'Get inbound vs outbound inventory movement summary',
     description:
