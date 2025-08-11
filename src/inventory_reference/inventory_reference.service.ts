@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { CreateInventoryReferenceDto } from './dto/create_inventory_reference.dto';
 import { Inventory } from 'src/entities/inventory.entity';
@@ -12,26 +13,68 @@ import { DataSource, QueryRunner } from 'typeorm';
 import { InventoryReference } from 'src/entities/inventory_reference.entity';
 import { InventoryReferenceResponseDto } from './dto/inventory_reference_response.dto';
 import { parseSKU, validateSKU } from 'src/lib/sku.util';
+import { ConfigService } from '@nestjs/config';
+import { WebhooksLogsService } from 'src/webhooks-logs/webhooks-logs.service';
+import {
+  WebHookLogType,
+  WebHookStatusType,
+} from 'src/entities/webhook_logs.entity';
 
 @Injectable()
 export class InventoryReferenceService {
   private readonly logger = new Logger(InventoryReferenceService.name);
 
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private configService: ConfigService,
+    private readonly webhookLogsService: WebhooksLogsService,
+  ) {}
 
   async create(
     createDto: CreateInventoryReferenceDto,
+    req: any,
   ): Promise<InventoryReferenceResponseDto> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    const webhookKey = this.configService.get<string>('WEBHOOK_KEY');
+    let webhookLogId: string | null = null;
     try {
+      if (!webhookKey) {
+        throw new Error('Web hook key not configured');
+      }
+
+      const incomingKey = req?.headers['x-webhook-key'];
+      if (!incomingKey) {
+        throw new UnauthorizedException('Missing X-Webhook-Key header');
+      }
+      if (incomingKey !== webhookKey) {
+        throw new UnauthorizedException('Not a valid key');
+      }
+
+      const webhookLog = await this.webhookLogsService.create({
+        type: WebHookLogType.INVENTORY_REFERENCE,
+        status: WebHookStatusType.RECEIVED,
+        request: createDto,
+        ipAddress: req?.ip,
+        description: 'Inventory reference webhook received.',
+      });
+
+      webhookLogId = webhookLog.id;
+
       const result = await this.createOrUpdateInventoryReference(
         queryRunner,
         createDto,
       );
       await queryRunner.commitTransaction();
+
+      await this.webhookLogsService.markAsStored(
+        webhookLogId,
+        result,
+        `Inventory reference webhook processed successfully`,
+      );
+
       return result;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -39,6 +82,13 @@ export class InventoryReferenceService {
         `Failed to create inventory location: ${error.message}`,
         error.stack,
       );
+
+      if (webhookLogId) {
+        await this.webhookLogsService.markAsError(
+          webhookLogId,
+          `Inventory reference webhook failed: ${error.message}`,
+        );
+      }
 
       // FIX: Handle database constraint violations
       if (error.code === 'ER_DUP_ENTRY') {

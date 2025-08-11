@@ -14,6 +14,7 @@ import { AuditLogModule } from './audit-log/audit-log.module';
 import { InventoryReferenceModule } from './inventory_reference/inventory_reference.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { InventoryMovementsModule } from './inventory_movements/inventory_movements.module';
+import { WebhooksLogsModule } from './webhooks-logs/webhooks-logs.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { InventoryMovementsModule } from './inventory_movements/inventory_moveme
     AuditLogModule,
     InventoryReferenceModule,
     InventoryMovementsModule,
+    WebhooksLogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
