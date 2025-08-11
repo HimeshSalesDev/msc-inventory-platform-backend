@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,6 +14,12 @@ import { QueryInventoryDto } from './dto/query-inventory.dto';
 import { Inventory } from 'src/entities/inventory.entity';
 import { OrderConfirmationDto } from './dto/order-confirmation.dto';
 import { AuditEventService } from 'src/audit-log/audit-event.service';
+import { ConfigService } from '@nestjs/config';
+import { WebhooksLogsService } from 'src/webhooks-logs/webhooks-logs.service';
+import {
+  WebHookLogType,
+  WebHookStatusType,
+} from 'src/entities/webhook_logs.entity';
 
 @Injectable()
 export class InventoryService {
@@ -22,6 +29,8 @@ export class InventoryService {
     @InjectRepository(Inventory)
     private inventoryRepository: Repository<Inventory>,
     private auditEventService: AuditEventService,
+    private configService: ConfigService,
+    private readonly webhookLogsService: WebhooksLogsService,
   ) {}
 
   async findAll(queryDto: QueryInventoryDto): Promise<Inventory[]> {
@@ -215,58 +224,115 @@ export class InventoryService {
     return await queryBuilder.getMany();
   }
 
-  async orderConfirmation(payload: OrderConfirmationDto) {
-    const { qty, sku } = payload;
+  async orderConfirmation(payload: OrderConfirmationDto, req: any) {
+    const webhookKey = this.configService.get<string>('WEBHOOK_KEY');
+    let webhookLogId: string | null = null;
+    try {
+      if (!webhookKey) {
+        throw new Error('Web hook key not configured');
+      }
 
-    return await this.inventoryRepository.manager.transaction(
-      async (transactionalEntityManager) => {
-        const inventory = await transactionalEntityManager
-          .createQueryBuilder(Inventory, 'inventory') // Use entity class
-          .where('inventory.sku = :sku', { sku })
-          .setLock('pessimistic_write')
-          .getOne();
+      const incomingKey = req?.headers['x-webhook-key'];
+      if (!incomingKey) {
+        throw new UnauthorizedException('Missing X-Webhook-Key header');
+      }
+      if (incomingKey !== webhookKey) {
+        throw new UnauthorizedException('Not a valid key');
+      }
 
-        if (!inventory) {
-          throw new NotFoundException('No Inventory Found!');
-        }
+      const { qty, sku } = payload;
 
-        const inHandQty = parseInt(inventory.inHandQuantity || '0');
-        const allocatedQuantity = parseInt(inventory.allocatedQuantity || '0');
-        const parsedQty = parseInt(qty);
+      const webhookLog = await this.webhookLogsService.create({
+        type: WebHookLogType.ORDER_CONFIRMATION,
+        status: WebHookStatusType.RECEIVED,
+        request: payload,
+        ipAddress: req?.ip,
+        description: 'Order confirmation webhook received.',
+      });
 
-        if (isNaN(inHandQty) || isNaN(parsedQty) || isNaN(allocatedQuantity)) {
-          throw new BadRequestException('Invalid quantity values');
-        }
+      webhookLogId = webhookLog.id;
 
-        if (parsedQty <= 0) {
-          throw new BadRequestException('Quantity must be positive');
-        }
+      const result = await this.inventoryRepository.manager.transaction(
+        async (transactionalEntityManager) => {
+          const inventory = await transactionalEntityManager
+            .createQueryBuilder(Inventory, 'inventory') // Use entity class
+            .where('inventory.sku = :sku', { sku })
+            .setLock('pessimistic_write')
+            .getOne();
 
-        if (parsedQty > inHandQty) {
-          throw new BadRequestException('Qty cant be more than in-hand qty');
-        }
+          if (!inventory) {
+            throw new NotFoundException('No Inventory Found!');
+          }
 
-        const updatedInHand = inHandQty - parsedQty;
-        const updatedAllocated = allocatedQuantity + parsedQty;
+          const inHandQty = parseInt(inventory.inHandQuantity || '0');
+          const allocatedQuantity = parseInt(
+            inventory.allocatedQuantity || '0',
+          );
+          const parsedQty = parseInt(qty);
 
-        const updatedRows = await transactionalEntityManager.update(
-          Inventory,
-          { id: inventory.id },
-          {
-            inHandQuantity: updatedInHand.toString(),
-            allocatedQuantity: updatedAllocated.toString(),
-          },
+          if (
+            isNaN(inHandQty) ||
+            isNaN(parsedQty) ||
+            isNaN(allocatedQuantity)
+          ) {
+            throw new BadRequestException('Invalid quantity values');
+          }
+
+          if (parsedQty <= 0) {
+            throw new BadRequestException('Quantity must be positive');
+          }
+
+          if (parsedQty > inHandQty) {
+            throw new BadRequestException('Qty cant be more than in-hand qty');
+          }
+
+          const updatedInHand = inHandQty - parsedQty;
+          const updatedAllocated = allocatedQuantity + parsedQty;
+
+          const updatedRows = await transactionalEntityManager.update(
+            Inventory,
+            { id: inventory.id },
+            {
+              inHandQuantity: updatedInHand.toString(),
+              allocatedQuantity: updatedAllocated.toString(),
+            },
+          );
+          const inventoryData = await this.inventoryRepository.findOne({
+            where: { id: inventory.id },
+          });
+
+          this.logger.log(
+            `Order confirmation successful for SKU: ${sku} | Quantity: ${qty} | Previous In Hand/Allocated QTY: ${inHandQty}/${allocatedQuantity} | Updated In Hand/Allocated QTY: ${updatedInHand}/${updatedAllocated}`,
+          );
+
+          return {
+            status: 'OK',
+            updatedRows: updatedRows.affected,
+            data: inventoryData,
+          };
+        },
+      );
+
+      // Log success
+
+      await this.webhookLogsService.markAsStored(
+        webhookLogId,
+        result,
+        `Order confirmation processed successfully for SKU: ${sku}. ` +
+          `Quantity ${qty} moved from in-hand to allocated.`,
+      );
+
+      return result;
+    } catch (error) {
+      // Error log
+      if (webhookLogId) {
+        await this.webhookLogsService.markAsError(
+          webhookLogId,
+          `Order confirmation failed: ${error.message}`,
         );
+      }
 
-        this.logger.log(
-          `Order confirmation successful for SKU: ${sku} | Quantity: ${qty} | Previous In Hand/Allocated QTY: ${inHandQty}/${allocatedQuantity} | Updated In Hand/Allocated QTY: ${updatedInHand}/${updatedAllocated}`,
-        );
-
-        return {
-          status: 'OK',
-          updatedRows: updatedRows.affected,
-        };
-      },
-    );
+      throw new Error(`Order confirmation failed: ${error.message}`);
+    }
   }
 }

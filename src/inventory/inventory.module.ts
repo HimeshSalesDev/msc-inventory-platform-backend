@@ -10,6 +10,7 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Role } from 'src/entities/role.entity';
 import { UsersModule } from 'src/users/users.module';
 import { AuditLogModule } from 'src/audit-log/audit-log.module';
+import { WebhooksLogsModule } from 'src/webhooks-logs/webhooks-logs.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AuditLogModule } from 'src/audit-log/audit-log.module';
     ConfigModule,
     UsersModule,
     AuditLogModule,
+    WebhooksLogsModule,
   ],
   controllers: [InventoryController],
   providers: [InventoryService, JwtAuthGuard, RolesGuard],

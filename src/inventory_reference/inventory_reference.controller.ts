@@ -6,6 +6,7 @@ import {
   HttpException,
   HttpStatus,
   Post,
+  Request,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -33,6 +34,7 @@ export class InventoryReferenceController {
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async createInventoryReference(
     @Body() createInventoryReferenceDto: CreateInventoryReferenceDto,
+    @Request() req: Request,
   ) {
     try {
       if (
@@ -45,6 +47,7 @@ export class InventoryReferenceController {
 
       return await this.inventoryReferenceService.create(
         createInventoryReferenceDto,
+        req,
       );
     } catch (error) {
       if (

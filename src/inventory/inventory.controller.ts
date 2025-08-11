@@ -239,7 +239,11 @@ export class InventoryController {
   })
   async orderConfirmation(
     @Body() orderConfirmationDto: OrderConfirmationDto,
+    @Request() req: Request,
   ): Promise<OrderConfirmationResponseDto> {
-    return await this.inventoryService.orderConfirmation(orderConfirmationDto);
+    return await this.inventoryService.orderConfirmation(
+      orderConfirmationDto,
+      req,
+    );
   }
 }
