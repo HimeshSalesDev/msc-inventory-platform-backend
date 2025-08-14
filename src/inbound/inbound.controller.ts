@@ -103,7 +103,10 @@ export class InboundController {
     status: HttpStatus.FORBIDDEN,
     description: 'Forbidden - Admin or Inbound Manager role required',
   })
-  async create(@Body() createInboundDto: CreateInboundDto): Promise<Inbound> {
+  async create(
+    @Body() createInboundDto: CreateInboundDto,
+    @Request() req: Request,
+  ): Promise<Inbound> {
     try {
       // Validate required fields
       if (
@@ -115,7 +118,7 @@ export class InboundController {
         throw new BadRequestException('Required fields are missing.');
       }
 
-      return await this.inboundService.create(createInboundDto);
+      return await this.inboundService.create(createInboundDto, req);
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -261,7 +264,7 @@ export class InboundController {
         data,
         filename,
         skipErrors,
-        req.user,
+        req,
       );
     } catch (error) {
       if (error instanceof BadRequestException) {
@@ -293,13 +296,16 @@ export class InboundController {
     status: HttpStatus.FORBIDDEN,
     description: 'Forbidden - Admin or Inbound Manager role required',
   })
-  async update(@Body() updateInboundDto: UpdateInboundDto): Promise<Inbound> {
+  async update(
+    @Body() updateInboundDto: UpdateInboundDto,
+    @Request() req: Request,
+  ): Promise<Inbound> {
     try {
       if (!updateInboundDto.id) {
         throw new BadRequestException('Id is required');
       }
 
-      return await this.inboundService.update(updateInboundDto);
+      return await this.inboundService.update(updateInboundDto, req);
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -350,13 +356,14 @@ export class InboundController {
   })
   async delete(
     @Body() body: { id: string },
+    @Request() req: Request,
   ): Promise<{ success: boolean; message: string }> {
     try {
       if (!body.id) {
         throw new BadRequestException('Inbound ID is required');
       }
 
-      await this.inboundService.delete(body.id);
+      await this.inboundService.delete(body.id, req);
       return { success: true, message: 'Inbound deleted' };
     } catch (error) {
       if (

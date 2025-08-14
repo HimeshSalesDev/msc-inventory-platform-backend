@@ -203,3 +203,85 @@ export class InventoryLocationUpdatedEvent extends AuditEvent {
     );
   }
 }
+
+export class InboundCreatedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    inboundData: Record<string, any>,
+    inboundId: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.ADD_INBOUND,
+      'inbound',
+      inboundId,
+      null,
+      inboundData,
+      'created',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}
+
+export class InboundUpdatedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    inboundId: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.UPDATE_INBOUND,
+      'inbound',
+      inboundId,
+      previousData,
+      updatedData,
+      'updated',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}
+
+export class InboundDeletedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    inboundData: Record<string, any>,
+    inboundId: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.DELETE_INBOUND,
+      'inbound',
+      inboundId,
+      inboundData,
+      null,
+      'deleted',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}

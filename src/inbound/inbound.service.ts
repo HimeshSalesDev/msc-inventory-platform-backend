@@ -25,6 +25,7 @@ import {
 } from 'src/constants/csv';
 import { formatDateToYMD } from 'src/lib/dateHelper';
 import { UpdateContainerFieldDto } from './dto/update-container-field.dto';
+import { AuditEventService } from 'src/audit-log/audit-event.service';
 
 @Injectable()
 export class InboundService {
@@ -33,6 +34,8 @@ export class InboundService {
   constructor(
     @InjectRepository(Inbound)
     private inboundRepo: Repository<Inbound>,
+
+    private auditEventService: AuditEventService,
   ) {}
 
   async findAll(queryDto: QueryInboundDto): Promise<Inbound[]> {
@@ -68,7 +71,7 @@ export class InboundService {
     return await qb.getMany();
   }
 
-  async create(createDto: CreateInboundDto): Promise<Inbound> {
+  async create(createDto: CreateInboundDto, req: any): Promise<Inbound> {
     const existing = await this.inboundRepo.findOne({
       where: { sku: createDto.sku },
     });
@@ -88,10 +91,27 @@ export class InboundService {
         : null,
     });
 
-    return await this.inboundRepo.save(record);
+    const inboundData = await this.inboundRepo.save(record);
+
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+
+      this.auditEventService.emitInboundCreated(
+        requestContext,
+        inboundData,
+        inboundData.id,
+      );
+    }
+    return inboundData;
   }
 
-  async update(updateDto: UpdateInboundDto) {
+  async update(updateDto: UpdateInboundDto, req: any) {
     const { id, ...updateData } = updateDto;
     const existing = await this.inboundRepo.findOne({ where: { id } });
 
@@ -99,11 +119,34 @@ export class InboundService {
       throw new NotFoundException('Inbound record not found');
     }
 
-    return await this.inboundRepo.save({
+    const inboundData = await this.inboundRepo.save({
       ...existing,
       ...updateData,
       updatedAt: new Date(),
     });
+
+    const updatedInBound = await this.inboundRepo.findOne({
+      where: { id },
+    });
+
+    // Log inbound update with before/after data
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+      this.auditEventService.emitInboundUpdated(
+        requestContext,
+        existing,
+        updatedInBound,
+        id,
+      );
+    }
+
+    return inboundData;
   }
 
   async updateByContainerNumber(
@@ -152,11 +195,28 @@ export class InboundService {
     return { updatedCount: result.affected || 0 };
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, req: any): Promise<void> {
     const existing = await this.inboundRepo.findOne({ where: { id } });
     if (!existing) {
       throw new NotFoundException('Inbound record not found');
     }
+
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+
+      this.auditEventService.emitInboundDeleted(
+        requestContext,
+        existing,
+        existing.id,
+      );
+    }
+
     await this.inboundRepo.delete(id);
   }
 
@@ -277,7 +337,7 @@ export class InboundService {
     data: any[],
     filename: string,
     skipErrors = false,
-    user: any,
+    req: any,
   ): Promise<any> {
     const dataToImport = skipErrors
       ? data.filter((row) => !row._hasErrors)
@@ -312,7 +372,7 @@ export class InboundService {
         this.logger.error(`Error importing row ${row._rowIndex}`, {
           error,
           row,
-          user: user?.email,
+          user: req?.user?.email,
           filename,
         });
 
@@ -321,6 +381,24 @@ export class InboundService {
           error: error instanceof Error ? error.message : 'Unknown error',
           data: row,
         });
+      }
+      // ✅ Emit audit logs for each successfully imported inbound
+      if (req?.user?.id) {
+        const requestContext = {
+          userId: req?.user.id,
+          userName: req?.user.fullName,
+          ipAddress: req?.ip,
+          userAgent: req?.get('User-Agent'),
+          controllerPath: req.route?.path || req.originalUrl,
+        };
+
+        for (const inboundData of successfulImports) {
+          this.auditEventService.emitInboundCreated(
+            requestContext,
+            inboundData,
+            inboundData.id,
+          );
+        }
       }
     }
 

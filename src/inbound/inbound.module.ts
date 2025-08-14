@@ -9,6 +9,7 @@ import { JwtConfigModule } from 'src/auth/jwt.module';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from 'src/users/users.module';
+import { AuditLogModule } from 'src/audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { UsersModule } from 'src/users/users.module';
     JwtConfigModule,
     ConfigModule,
     UsersModule,
+    AuditLogModule,
   ],
   controllers: [InboundController],
   providers: [InboundService, JwtAuthGuard, RolesGuard],

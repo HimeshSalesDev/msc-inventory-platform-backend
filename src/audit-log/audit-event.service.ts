@@ -9,6 +9,9 @@ import {
   UserLogoutEvent,
   InventoryLocationCreatedEvent,
   InventoryLocationUpdatedEvent,
+  InboundCreatedEvent,
+  InboundUpdatedEvent,
+  InboundDeletedEvent,
 } from './events/audit.events';
 import { AuditLogType } from 'src/entities/auditLog.entity';
 
@@ -133,6 +136,60 @@ export class AuditEventService {
       previousData,
       updatedData,
       inventoryLocationId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  // Inbound events
+  emitInboundCreated(
+    context: RequestContext,
+    inboundData: Record<string, any>,
+    inboundId: string,
+  ): void {
+    const event = new InboundCreatedEvent(
+      context.userId,
+      context.userName,
+      inboundData,
+      inboundId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInboundUpdated(
+    context: RequestContext,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    inboundId: string,
+  ): void {
+    const event = new InboundUpdatedEvent(
+      context.userId,
+      context.userName,
+      previousData,
+      updatedData,
+      inboundId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInboundDeleted(
+    context: RequestContext,
+    inboundData: Record<string, any>,
+    inboundId: string,
+  ): void {
+    const event = new InboundDeletedEvent(
+      context.userId,
+      context.userName,
+      inboundData,
+      inboundId,
       context.ipAddress,
       context.userAgent,
       context.controllerPath,

@@ -87,7 +87,8 @@ export class AuditListener {
       !previousData &&
       (type === AuditLogType.ADD_INVENTORY ||
         type === AuditLogType.ADD_INVENTORY_LOCATION ||
-        type === AuditLogType.CREATE_USER)
+        type === AuditLogType.CREATE_USER ||
+        type === AuditLogType.ADD_INBOUND)
     ) {
       await this.saveAuditLog({
         userId,
@@ -130,7 +131,8 @@ export class AuditListener {
     if (
       previousData &&
       !updatedData &&
-      type === AuditLogType.DELETE_INVENTORY
+      (type === AuditLogType.DELETE_INVENTORY ||
+        type === AuditLogType.DELETE_INBOUND)
     ) {
       await this.saveAuditLog({
         userId,
