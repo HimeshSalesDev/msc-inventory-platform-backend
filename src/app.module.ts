@@ -15,6 +15,7 @@ import { InventoryReferenceModule } from './inventory_reference/inventory_refere
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { InventoryMovementsModule } from './inventory_movements/inventory_movements.module';
 import { WebhooksLogsModule } from './webhooks-logs/webhooks-logs.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { WebhooksLogsModule } from './webhooks-logs/webhooks-logs.module';
     InventoryReferenceModule,
     InventoryMovementsModule,
     WebhooksLogsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

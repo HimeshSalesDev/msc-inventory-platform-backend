@@ -1,9 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AuditLog, AuditLogType } from 'src/entities/auditLog.entity';
 
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { QueryAuditLogsDto } from './dto/query-audit-log.dto';
+
+import { Inventory } from 'src/entities/inventory.entity';
 
 @Injectable()
 export class AuditLogService {
@@ -12,6 +14,9 @@ export class AuditLogService {
   constructor(
     @InjectRepository(AuditLog)
     private auditLogRepository: Repository<AuditLog>,
+
+    @InjectRepository(Inventory)
+    private inventoryRepository: Repository<Inventory>,
   ) {}
 
   async findAll(queryDto: QueryAuditLogsDto): Promise<{
@@ -53,6 +58,71 @@ export class AuditLogService {
       .take(limit)
       .skip((page - 1) * limit)
       .getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async findAllBySku(
+    sku: string,
+    queryDto: QueryAuditLogsDto,
+  ): Promise<{
+    data: AuditLog[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const {
+      page = 1,
+      limit = 100,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC',
+    } = queryDto;
+
+    // 1️⃣ Get the inventory record with its related locations
+
+    if (!sku || typeof sku !== 'string' || sku.trim().length === 0) {
+      throw new BadRequestException('SKU must be a non-empty string');
+    }
+    const trimmedSku = sku.trim();
+
+    const inventory = await this.inventoryRepository.findOne({
+      where: { sku: trimmedSku },
+      relations: ['inventoryLocations'],
+    });
+
+    if (!inventory) {
+      return {
+        data: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      };
+    }
+
+    // 2️⃣ Extract all entity IDs we care about
+    const entityIds: string[] = [
+      inventory.id,
+      ...inventory.inventoryLocations.map((loc) => loc.id),
+    ];
+
+    // 3️⃣ Build the query for audit logs
+    const queryBuilder = this.auditLogRepository
+      .createQueryBuilder('auditLog')
+      .leftJoinAndSelect('auditLog.user', 'user')
+      .where('auditLog.entityId IN (:...entityIds)', { entityIds })
+      .orderBy(`auditLog.${sortBy}`, sortOrder)
+      .take(limit)
+      .skip((page - 1) * limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
 
     return {
       data,

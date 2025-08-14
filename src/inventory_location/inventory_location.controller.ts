@@ -55,7 +55,7 @@ export class InventoryLocationController {
   ) {}
 
   @Post()
-  @Roles(UserRole.MOBILE_APP)
+  @Roles(UserRole.MOBILE_APP, UserRole.ADMIN, UserRole.INVENTORY_MANAGER)
   @ApiOperation({
     summary: 'Create or update inventory location',
     description: `
