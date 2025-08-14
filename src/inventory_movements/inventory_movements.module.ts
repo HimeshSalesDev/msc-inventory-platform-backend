@@ -18,5 +18,6 @@ import { ConfigModule } from '@nestjs/config';
   ],
   controllers: [InventoryMovementsController],
   providers: [InventoryMovementsService],
+  exports: [InventoryMovementsService],
 })
 export class InventoryMovementsModule {}

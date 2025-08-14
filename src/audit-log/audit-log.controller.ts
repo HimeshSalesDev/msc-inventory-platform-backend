@@ -5,6 +5,7 @@ import {
   HttpStatus,
   HttpCode,
   UseGuards,
+  Param,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -48,5 +49,30 @@ export class AuditLogController {
   })
   async findAll(@Query() queryDto: QueryAuditLogsDto) {
     return await this.auditLogService.findAll(queryDto);
+  }
+
+  @Get('by-sku/:sku')
+  @Roles(UserRole.ADMIN, UserRole.INVENTORY_MANAGER)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get all audit logs by sku with pagination and filtering',
+  })
+  @ApiOkResponse({
+    type: PaginatedAuditLogResponseDto,
+    description: 'Audit logs retrieved successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin  and inventory role required',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Failed to fetch logs',
+  })
+  async findAllBySku(
+    @Query() queryDto: QueryAuditLogsDto,
+    @Param('sku') sku: string,
+  ) {
+    return await this.auditLogService.findAllBySku(sku, queryDto);
   }
 }

@@ -12,9 +12,11 @@ import { UsersModule } from 'src/users/users.module';
 import { AuditEventService } from './audit-event.service';
 import { AuditListener } from 'src/audit-log/listeners/audit.listener';
 
+import { Inventory } from 'src/entities/inventory.entity';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AuditLog]),
+    TypeOrmModule.forFeature([AuditLog, Inventory]),
     JwtConfigModule,
     ConfigModule,
     UsersModule,
