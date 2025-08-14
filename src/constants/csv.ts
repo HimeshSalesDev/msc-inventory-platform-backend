@@ -34,7 +34,6 @@ export const INBOUND_CSV_FILE_COLUMNS = [
   'ETD',
   'ETA',
   'Shipped',
-  'Offloaded Date',
 ];
 
 export const INBOUND_CSV_TO_PRISMA_INVENTORY_MAP = {
@@ -57,7 +56,6 @@ export const INBOUND_CSV_TO_PRISMA_INVENTORY_MAP = {
   ETD: 'etd',
   ETA: 'eta',
   Shipped: 'shipped',
-  'Offloaded Date': 'offloadedDate',
 };
 
 export const INBOUND_DATE_FIELDS = ['ETD', 'ETA', 'Offloaded Date'];

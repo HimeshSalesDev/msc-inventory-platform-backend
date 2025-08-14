@@ -3,15 +3,20 @@ import {
   Get,
   Post,
   Body,
+  Put,
+  Delete,
   Query,
   UseGuards,
   Request,
   HttpStatus,
   HttpException,
   BadRequestException,
+  NotFoundException,
   ConflictException,
   UseInterceptors,
   UploadedFile,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -34,6 +39,8 @@ import { InboundService } from './inbound.service';
 import { Inbound } from 'src/entities/inbound.entity';
 import { QueryInboundDto } from './dto/query-inbound.dto';
 import { CreateInboundDto } from './dto/create-inbound.dto';
+import { UpdateInboundDto } from './dto/update-inbound.dto';
+import { UpdateContainerFieldDto } from './dto/update-container-field.dto';
 
 @ApiTags('inbound')
 @Controller('inbound')
@@ -265,5 +272,118 @@ export class InboundController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Put()
+  @Roles(UserRole.ADMIN, UserRole.INBOUND_MANAGER)
+  @ApiOperation({ summary: 'Update an existing inbound item' })
+  @ApiOkResponse({
+    type: Inbound,
+    description: 'Inbound item updated successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid data or ID is required',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inbound item not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin or Inbound Manager role required',
+  })
+  async update(@Body() updateInboundDto: UpdateInboundDto): Promise<Inbound> {
+    try {
+      if (!updateInboundDto.id) {
+        throw new BadRequestException('Id is required');
+      }
+
+      return await this.inboundService.update(updateInboundDto);
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new HttpException(
+        'Failed to update inbound item',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Delete()
+  @Roles(UserRole.ADMIN, UserRole.INBOUND_MANAGER)
+  @ApiOperation({ summary: 'Delete an inbound item' })
+  @ApiOkResponse({
+    description: 'Inbound item deleted successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Inbound deleted' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Inbound ID is required',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inbound item not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin or Inbound Manager role required',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440000' },
+      },
+      required: ['id'],
+    },
+  })
+  async delete(
+    @Body() body: { id: string },
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      if (!body.id) {
+        throw new BadRequestException('Inbound ID is required');
+      }
+
+      await this.inboundService.delete(body.id);
+      return { success: true, message: 'Inbound deleted' };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new HttpException(
+        'Failed to delete inbound item',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Put('update-by-container')
+  @Roles(UserRole.ADMIN, UserRole.INBOUND_MANAGER)
+  @ApiOperation({
+    summary: 'Update fields for all inbounds with given container number',
+    description:
+      'Updates all inbound records that have the specified container number. At least one of etd, eta, shipped, or offloadedDate must be provided.',
+  })
+  @ApiResponse({ status: 200, description: 'Records updated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid input or missing fields' })
+  @ApiResponse({ status: 404, description: 'No matching records found' })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async updateByContainer(@Body() dto: UpdateContainerFieldDto) {
+    return this.inboundService.updateByContainerNumber(dto);
   }
 }

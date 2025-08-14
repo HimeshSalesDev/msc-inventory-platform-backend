@@ -24,6 +24,7 @@ import {
   REQUIRED_FIELDS,
 } from 'src/constants/csv';
 import { formatDateToYMD } from 'src/lib/dateHelper';
+import { UpdateContainerFieldDto } from './dto/update-container-field.dto';
 
 @Injectable()
 export class InboundService {
@@ -38,6 +39,7 @@ export class InboundService {
     const {
       poNumber,
       vendorDescription,
+      containerNumber,
       sortBy = 'createdAt',
       sortOrder = 'DESC',
     } = queryDto;
@@ -47,6 +49,12 @@ export class InboundService {
     if (poNumber) {
       qb.andWhere('inbound.poNumber LIKE :poNumber', {
         poNumber: `%${poNumber}%`,
+      });
+    }
+
+    if (containerNumber) {
+      qb.andWhere('inbound.containerNumber = :containerNumber', {
+        containerNumber,
       });
     }
 
@@ -91,20 +99,57 @@ export class InboundService {
       throw new NotFoundException('Inbound record not found');
     }
 
-    const updateDtoData = {
-      ...updateData,
-      etd: updateData.etd ? new Date(updateData.etd) : null,
-      eta: updateData.eta ? new Date(updateData.eta) : null,
-      offloadedDate: updateData.offloadedDate
-        ? new Date(updateData.offloadedDate)
-        : null,
-    };
-
     return await this.inboundRepo.save({
       ...existing,
-      ...updateDtoData,
+      ...updateData,
       updatedAt: new Date(),
     });
+  }
+
+  async updateByContainerNumber(
+    dto: UpdateContainerFieldDto,
+  ): Promise<{ updatedCount: number }> {
+    const { containerNumber, etd, eta, shipped, offloadedDate } = dto;
+
+    if (!etd && !eta && !shipped && !offloadedDate) {
+      throw new BadRequestException(
+        'At least one of etd, eta, shipped, or offloadedDate must be provided',
+      );
+    }
+
+    // Check if container exists first
+    const exists = await this.inboundRepo.exists({
+      where: { containerNumber },
+    });
+
+    if (!exists) {
+      throw new NotFoundException(
+        `No inbound records found for container number "${containerNumber}"`,
+      );
+    }
+
+    // Prepare update object
+    const updateData: any = {
+      updatedAt: new Date(),
+    };
+
+    if (etd) updateData.etd = etd;
+    if (eta) updateData.eta = eta;
+    if (shipped) updateData.shipped = shipped;
+    if (offloadedDate) updateData.offloadedDate = offloadedDate;
+
+    const result = await this.inboundRepo.manager.transaction(
+      async (manager) => {
+        return await manager
+          .createQueryBuilder()
+          .update(Inbound)
+          .set(updateData)
+          .where('containerNumber = :containerNumber', { containerNumber })
+          .execute();
+      },
+    );
+
+    return { updatedCount: result.affected || 0 };
   }
 
   async delete(id: string): Promise<void> {
