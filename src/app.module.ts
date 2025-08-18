@@ -16,6 +16,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { InventoryMovementsModule } from './inventory_movements/inventory_movements.module';
 import { WebhooksLogsModule } from './webhooks-logs/webhooks-logs.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { CustomOrdersModule } from './custom_orders/custom_orders.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     InventoryMovementsModule,
     WebhooksLogsModule,
     DashboardModule,
+    CustomOrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

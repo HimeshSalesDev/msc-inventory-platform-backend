@@ -9,7 +9,6 @@ import {
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { InventoryLocation } from './inventory_location.entity';
-import { InventoryReference } from './inventory_reference.entity';
 
 @Entity('inventory')
 export class Inventory {

@@ -182,6 +182,15 @@ export class Inbound {
   quantity?: string; // Use string here to safely store bigints
 
   @ApiProperty({
+    description:
+      'PreBooked quantity - amount reserved for orders but not yet in stock (supports very large values up to bigint limit)',
+    example: 250000,
+    required: false,
+  })
+  @Column({ type: 'bigint', nullable: true, default: '0' })
+  preBookedQuantity?: string;
+
+  @ApiProperty({
     description: 'Date when the record was created',
     example: '2024-01-15T10:30:00Z',
   })

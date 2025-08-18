@@ -11,10 +11,11 @@ import { Role } from 'src/entities/role.entity';
 import { UsersModule } from 'src/users/users.module';
 import { AuditLogModule } from 'src/audit-log/audit-log.module';
 import { WebhooksLogsModule } from 'src/webhooks-logs/webhooks-logs.module';
+import { Inbound } from 'src/entities/inbound.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Inventory, Role]),
+    TypeOrmModule.forFeature([Inventory, Role, Inbound]),
     JwtConfigModule,
     ConfigModule,
     UsersModule,

@@ -20,6 +20,8 @@ import {
   WebHookLogType,
   WebHookStatusType,
 } from 'src/entities/webhook_logs.entity';
+import { Inbound } from 'src/entities/inbound.entity';
+import dayjs from 'dayjs';
 
 @Injectable()
 export class InventoryService {
@@ -31,6 +33,9 @@ export class InventoryService {
     private auditEventService: AuditEventService,
     private configService: ConfigService,
     private readonly webhookLogsService: WebhooksLogsService,
+
+    @InjectRepository(Inbound)
+    private inboundRepository: Repository<Inbound>,
   ) {}
 
   async findAll(queryDto: QueryInventoryDto): Promise<Inventory[]> {
@@ -189,7 +194,24 @@ export class InventoryService {
     return updatedInventory;
   }
 
-  async findQuantityBySKU(sku: string | string[]): Promise<Inventory[]> {
+  async findQuantityBySKU(
+    sku: string | string[],
+    req: any,
+  ): Promise<{ inventory: Inventory[]; inbound: Inbound[] }> {
+    const webhookKey = this.configService.get<string>('WEBHOOK_KEY');
+
+    if (!webhookKey) {
+      throw new Error('Web hook key not configured');
+    }
+
+    const incomingKey = req?.headers['x-webhook-key'];
+    if (!incomingKey) {
+      throw new UnauthorizedException('Missing X-Webhook-Key header');
+    }
+    if (incomingKey !== webhookKey) {
+      throw new UnauthorizedException('Not a valid key');
+    }
+
     // Validate SKU input
     if (
       !sku ||
@@ -201,27 +223,65 @@ export class InventoryService {
       );
     }
 
-    const queryBuilder =
+    // ---- Inventory Query ----
+    const inventoryQuery =
       this.inventoryRepository.createQueryBuilder('inventory');
-
-    // Apply filters
     if (Array.isArray(sku)) {
-      // Filter with multiple `LIKE` conditions using OR
       const conditions = sku.map(
-        (val, index) => `inventory.sku LIKE :sku${index}`,
+        (_, index) => `inventory.sku LIKE :sku${index}`,
       );
       const parameters = sku.reduce((acc, val, index) => {
         acc[`sku${index}`] = `${val}%`;
         return acc;
       }, {});
-
-      queryBuilder.andWhere(conditions.join(' OR '), parameters);
+      inventoryQuery.andWhere(conditions.join(' OR '), parameters);
     } else {
-      // Single string
-      queryBuilder.andWhere('inventory.sku LIKE :sku', { sku: `${sku}%` });
+      inventoryQuery.andWhere('inventory.sku LIKE :sku', { sku: `${sku}%` });
     }
 
-    return await queryBuilder.getMany();
+    // ---- Inbound Query ----
+    const inboundQuery = this.inboundRepository.createQueryBuilder('inbound');
+
+    // Filter by SKU
+    if (Array.isArray(sku)) {
+      const conditions = sku.map((_, index) => `inbound.sku LIKE :sku${index}`);
+      const parameters = sku.reduce((acc, val, index) => {
+        acc[`sku${index}`] = `${val}%`;
+        return acc;
+      }, {});
+      inboundQuery.andWhere(conditions.join(' OR '), parameters);
+    } else {
+      inboundQuery.andWhere('inbound.sku LIKE :sku', { sku: `${sku}%` });
+    }
+
+    // Filter ETA between today and +3 days
+    const today = dayjs().format('YYYY-MM-DD');
+    const threeDaysLater = dayjs().add(3, 'day').format('YYYY-MM-DD');
+
+    inboundQuery.andWhere('inbound.eta BETWEEN :startDate AND :endDate', {
+      startDate: today,
+      endDate: threeDaysLater,
+    });
+
+    // Order by earliest ETA
+    inboundQuery.orderBy('inbound.eta', 'ASC');
+
+    const [inventory, inboundRaw] = await Promise.all([
+      inventoryQuery.getMany(),
+      inboundQuery.getMany(),
+    ]);
+
+    // Filter and map inbound with computed `inHandQuantity`
+    const inbound = inboundRaw
+      .map((record) => ({
+        ...record,
+        inHandQuantity:
+          parseFloat(record.quantity) -
+          (parseFloat(record.preBookedQuantity) || 0),
+      }))
+      .filter((record) => record.inHandQuantity > 0);
+
+    return { inventory, inbound };
   }
 
   async orderConfirmation(payload: OrderConfirmationDto, req: any) {

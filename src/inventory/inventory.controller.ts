@@ -36,7 +36,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../enums/roles.enum';
 import { Inventory } from 'src/entities/inventory.entity';
 
-import { FindQuantityBySkuDto } from './dto/find-quantity-by-sku.dto';
+import {
+  FindQuantityBySkuDto,
+  FindQuantityResponseDto,
+} from './dto/find-quantity-by-sku.dto';
 import { Public } from 'src/auth/decorators/public.decorator';
 import { OrderConfirmationDto } from './dto/order-confirmation.dto';
 import { OrderConfirmationResponseDto } from './dto/order-confirmation-response.dto';
@@ -174,27 +177,28 @@ export class InventoryController {
 
   @Post('inhand-quantity')
   @Public()
-  @ApiOperation({ summary: 'Get inventory in-hand quantity by SKU(s)' })
+  @ApiOperation({ summary: 'Get inventory + inbound records by SKU(s)' })
   @ApiBody({
     description:
       'Provide a single SKU as string or multiple SKUs as an array of strings.',
     type: FindQuantityBySkuDto,
   })
   @ApiOkResponse({
-    type: [Inventory],
+    type: FindQuantityResponseDto,
     description:
-      'Returns the available in-hand quantity for the provided SKU(s)',
+      'Returns the inventory and inbound records for the provided SKU(s)',
   })
   @ApiBadRequestResponse({
     description: 'Invalid request format or missing SKU(s)',
   })
   @ApiNotFoundResponse({
-    description: 'Inventory record(s) not found for the given SKU(s)',
+    description: 'No inventory or inbound records found for the given SKU(s)',
   })
   async findQuantityBySKU(
     @Body() body: FindQuantityBySkuDto,
-  ): Promise<Inventory[]> {
-    return await this.inventoryService.findQuantityBySKU(body.sku);
+    @Request() req: Request,
+  ): Promise<FindQuantityResponseDto> {
+    return await this.inventoryService.findQuantityBySKU(body.sku, req);
   }
 
   @Post('order-confirmation')
