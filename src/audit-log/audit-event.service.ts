@@ -9,6 +9,10 @@ import {
   UserLogoutEvent,
   InventoryLocationCreatedEvent,
   InventoryLocationUpdatedEvent,
+  InboundCreatedEvent,
+  InboundUpdatedEvent,
+  InboundDeletedEvent,
+  InboundContainerUpdatedEvent,
 } from './events/audit.events';
 import { AuditLogType } from 'src/entities/auditLog.entity';
 
@@ -140,6 +144,60 @@ export class AuditEventService {
     this.emitAuditEvent(event);
   }
 
+  // Inbound events
+  emitInboundCreated(
+    context: RequestContext,
+    inboundData: Record<string, any>,
+    inboundId: string,
+  ): void {
+    const event = new InboundCreatedEvent(
+      context.userId,
+      context.userName,
+      inboundData,
+      inboundId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInboundUpdated(
+    context: RequestContext,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    inboundId: string,
+  ): void {
+    const event = new InboundUpdatedEvent(
+      context.userId,
+      context.userName,
+      previousData,
+      updatedData,
+      inboundId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInboundDeleted(
+    context: RequestContext,
+    inboundData: Record<string, any>,
+    inboundId: string,
+  ): void {
+    const event = new InboundDeletedEvent(
+      context.userId,
+      context.userName,
+      inboundData,
+      inboundId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
   // Generic method for custom audit events
   emitCustomAuditEvent(
     userId: string,
@@ -170,6 +228,26 @@ export class AuditEventService {
       options?.userAgent,
       options?.isLogWithoutData,
       controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInboundContainerUpdated(
+    context: RequestContext,
+    updatedData: Record<string, any>,
+    containerNumber: string,
+    message: string,
+  ): void {
+    const event = new InboundContainerUpdatedEvent(
+      context.userId,
+      context.userName,
+      {},
+      updatedData,
+      containerNumber,
+      message,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
     );
     this.emitAuditEvent(event);
   }
