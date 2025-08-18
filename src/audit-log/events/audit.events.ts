@@ -285,3 +285,32 @@ export class InboundDeletedEvent extends AuditEvent {
     );
   }
 }
+
+export class InboundContainerUpdatedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    containerNumber: string,
+    message: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.UPDATE_INBOUND,
+      `inbound ${message}`,
+      containerNumber,
+      previousData,
+      updatedData,
+      'updated',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}

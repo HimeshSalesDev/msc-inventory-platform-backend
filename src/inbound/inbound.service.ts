@@ -129,7 +129,6 @@ export class InboundService {
       where: { id },
     });
 
-    // Log inbound update with before/after data
     if (req?.user?.id) {
       const requestContext = {
         userId: req.user.id,
@@ -151,6 +150,7 @@ export class InboundService {
 
   async updateByContainerNumber(
     dto: UpdateContainerFieldDto,
+    req: any,
   ): Promise<{ updatedCount: number }> {
     const { containerNumber, etd, eta, shipped, offloadedDate } = dto;
 
@@ -160,12 +160,9 @@ export class InboundService {
       );
     }
 
-    // Check if container exists first
-    const exists = await this.inboundRepo.exists({
-      where: { containerNumber },
-    });
+    const records = await this.inboundRepo.find({ where: { containerNumber } });
 
-    if (!exists) {
+    if (!records.length) {
       throw new NotFoundException(
         `No inbound records found for container number "${containerNumber}"`,
       );
@@ -191,6 +188,25 @@ export class InboundService {
           .execute();
       },
     );
+
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+
+      const message = `skus ${records.map((r) => r.sku).join(',')} for container number`;
+
+      this.auditEventService.emitInboundContainerUpdated(
+        requestContext,
+        updateData,
+        containerNumber,
+        message,
+      );
+    }
 
     return { updatedCount: result.affected || 0 };
   }

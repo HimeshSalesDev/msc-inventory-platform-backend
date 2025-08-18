@@ -390,7 +390,10 @@ export class InboundController {
   @ApiResponse({ status: 400, description: 'Invalid input or missing fields' })
   @ApiResponse({ status: 404, description: 'No matching records found' })
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async updateByContainer(@Body() dto: UpdateContainerFieldDto) {
-    return this.inboundService.updateByContainerNumber(dto);
+  async updateByContainer(
+    @Body() dto: UpdateContainerFieldDto,
+    @Request() req: Request,
+  ) {
+    return this.inboundService.updateByContainerNumber(dto, req);
   }
 }

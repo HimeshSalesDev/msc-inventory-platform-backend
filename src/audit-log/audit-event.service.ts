@@ -12,6 +12,7 @@ import {
   InboundCreatedEvent,
   InboundUpdatedEvent,
   InboundDeletedEvent,
+  InboundContainerUpdatedEvent,
 } from './events/audit.events';
 import { AuditLogType } from 'src/entities/auditLog.entity';
 
@@ -227,6 +228,26 @@ export class AuditEventService {
       options?.userAgent,
       options?.isLogWithoutData,
       controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInboundContainerUpdated(
+    context: RequestContext,
+    updatedData: Record<string, any>,
+    containerNumber: string,
+    message: string,
+  ): void {
+    const event = new InboundContainerUpdatedEvent(
+      context.userId,
+      context.userName,
+      {},
+      updatedData,
+      containerNumber,
+      message,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
     );
     this.emitAuditEvent(event);
   }
