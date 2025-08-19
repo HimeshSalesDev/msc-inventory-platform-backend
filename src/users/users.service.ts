@@ -12,6 +12,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { AuditEventService } from 'src/audit-log/audit-event.service';
 
 @Injectable()
 export class UsersService {
@@ -20,6 +21,7 @@ export class UsersService {
     private usersRepository: Repository<User>,
     @InjectRepository(Role)
     private rolesRepository: Repository<Role>,
+    private auditEventService: AuditEventService,
   ) {}
 
   // Existing methods...
@@ -64,7 +66,7 @@ export class UsersService {
     });
   }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto, req: any): Promise<User> {
     const { email, password, fullName, role } = createUserDto;
 
     // Check if user already exists
@@ -94,10 +96,32 @@ export class UsersService {
       role: roleRecord,
     });
 
-    return this.usersRepository.save(user);
+    const newUser = await this.usersRepository.save(user);
+
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+      this.auditEventService.emitUserCreated(
+        requestContext,
+        {
+          id: newUser.id,
+          email: newUser.email,
+          fullName: newUser.fullName,
+          role: newUser.role.name,
+        },
+        newUser.id,
+      );
+    }
+
+    return newUser;
   }
 
-  async update(updateUserDto: UpdateUserDto): Promise<User> {
+  async update(updateUserDto: UpdateUserDto, req: any): Promise<User> {
     const { id, email, fullName, role } = updateUserDto;
 
     // Check if user exists
@@ -141,10 +165,38 @@ export class UsersService {
 
       updateData.role = roleRecord;
     }
-
+    const previousData = {
+      id: existingUser.id,
+      email: existingUser.email,
+      fullName: existingUser.fullName,
+      role: existingUser.role.name,
+    };
     // Update user
     Object.assign(existingUser, updateData);
-    return this.usersRepository.save(existingUser);
+    const updatedUser = await this.usersRepository.save(existingUser);
+    console.log(req?.user);
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+      this.auditEventService.emitUserUpdated(
+        requestContext,
+        previousData,
+        {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          fullName: updatedUser.fullName,
+          role: updatedUser.role.name,
+        },
+        updatedUser.id,
+      );
+    }
+
+    return updatedUser;
   }
 
   private generateRandomPassword(length: number = 8): string {

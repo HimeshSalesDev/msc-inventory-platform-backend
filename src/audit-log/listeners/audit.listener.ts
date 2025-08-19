@@ -53,7 +53,7 @@ export class AuditListener {
 
     const entityInfo = entityName ?? '';
     const entityIdInfo = entityId;
-    let description = `User ${userName} ${action} ${entityInfo}${
+    let description = `${userName} ${action} ${entityInfo}${
       entityIdInfo ? ` (ID: ${entityIdInfo})` : ''
     }`;
 
