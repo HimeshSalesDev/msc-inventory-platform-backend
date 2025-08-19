@@ -28,6 +28,8 @@ async function bootstrap() {
 
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  await app.listen(3001);
+  const port = process.env.SERVER_PORT;
+
+  await app.listen(port || 3001);
 }
 bootstrap();
