@@ -4,6 +4,8 @@ import {
   ValidationOptions,
   ValidationArguments,
 } from 'class-validator';
+import { Inbound } from 'src/entities/inbound.entity';
+import { Inventory } from 'src/entities/inventory.entity';
 
 // Custom validator function
 function IsStringOrStringArray(validationOptions?: ValidationOptions) {
@@ -41,4 +43,12 @@ export class FindQuantityBySkuDto {
   })
   @IsStringOrStringArray()
   sku: string | string[];
+}
+
+export class FindQuantityResponseDto {
+  @ApiProperty({ type: [Inventory] })
+  inventory: Inventory[];
+
+  @ApiProperty({ type: [Inbound] })
+  inbound: Inbound[];
 }
