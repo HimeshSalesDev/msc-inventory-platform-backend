@@ -12,7 +12,10 @@ import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { QueryInventoryDto } from './dto/query-inventory.dto';
 
 import { Inventory } from 'src/entities/inventory.entity';
-import { OrderConfirmationDto } from './dto/order-confirmation.dto';
+import {
+  OrderConfirmationDto,
+  OrderTypeEnum,
+} from './dto/order-confirmation.dto';
 import { AuditEventService } from 'src/audit-log/audit-event.service';
 import { ConfigService } from '@nestjs/config';
 import { WebhooksLogsService } from 'src/webhooks-logs/webhooks-logs.service';
@@ -22,6 +25,10 @@ import {
 } from 'src/entities/webhook_logs.entity';
 import { Inbound } from 'src/entities/inbound.entity';
 import dayjs from 'dayjs';
+import {
+  CustomOrders,
+  CustomOrdersStatusEnum,
+} from 'src/entities/custom_orders.entity';
 
 @Injectable()
 export class InventoryService {
@@ -288,19 +295,15 @@ export class InventoryService {
     const webhookKey = this.configService.get<string>('WEBHOOK_KEY');
     let webhookLogId: string | null = null;
     try {
-      if (!webhookKey) {
-        throw new Error('Web hook key not configured');
-      }
+      if (!webhookKey) throw new Error('Web hook key not configured');
 
       const incomingKey = req?.headers['x-webhook-key'];
-      if (!incomingKey) {
+      if (!incomingKey)
         throw new UnauthorizedException('Missing X-Webhook-Key header');
-      }
-      if (incomingKey !== webhookKey) {
+      if (incomingKey !== webhookKey)
         throw new UnauthorizedException('Not a valid key');
-      }
 
-      const { qty, sku } = payload;
+      const { qty, sku, type, id } = payload;
 
       const webhookLog = await this.webhookLogsService.create({
         type: WebHookLogType.ORDER_CONFIRMATION,
@@ -309,89 +312,153 @@ export class InventoryService {
         ipAddress: req?.ip,
         description: 'Order confirmation webhook received.',
       });
-
       webhookLogId = webhookLog.id;
 
       const result = await this.inventoryRepository.manager.transaction(
         async (transactionalEntityManager) => {
-          const inventory = await transactionalEntityManager
-            .createQueryBuilder(Inventory, 'inventory') // Use entity class
-            .where('inventory.sku = :sku', { sku })
-            .setLock('pessimistic_write')
-            .getOne();
-
-          if (!inventory) {
-            throw new NotFoundException('No Inventory Found!');
-          }
-
-          const inHandQty = parseInt(inventory.inHandQuantity || '0');
-          const allocatedQuantity = parseInt(
-            inventory.allocatedQuantity || '0',
-          );
           const parsedQty = parseInt(qty);
-
-          if (
-            isNaN(inHandQty) ||
-            isNaN(parsedQty) ||
-            isNaN(allocatedQuantity)
-          ) {
-            throw new BadRequestException('Invalid quantity values');
+          if (isNaN(parsedQty) || parsedQty <= 0) {
+            throw new BadRequestException(
+              'Quantity must be a valid positive number',
+            );
           }
 
-          if (parsedQty <= 0) {
-            throw new BadRequestException('Quantity must be positive');
+          if (type === OrderTypeEnum.INVENTORY) {
+            const inventory = await transactionalEntityManager
+              .createQueryBuilder(Inventory, 'inventory')
+              .where('inventory.sku = :sku', { sku })
+              .setLock('pessimistic_write')
+              .getOne();
+
+            if (!inventory) throw new NotFoundException('No Inventory Found!');
+
+            const inHandQty = parseInt(inventory.inHandQuantity || '0');
+            const allocatedQty = parseInt(inventory.allocatedQuantity || '0');
+
+            const parsedQty = parseInt(qty);
+
+            if (isNaN(inHandQty) || isNaN(parsedQty) || isNaN(allocatedQty)) {
+              throw new BadRequestException('Invalid quantity values');
+            }
+
+            if (parsedQty <= 0) {
+              throw new BadRequestException('Quantity must be positive');
+            }
+
+            if (parsedQty > inHandQty) {
+              throw new BadRequestException(
+                'Qty cant be more than in-hand qty',
+              );
+            }
+
+            const updatedInHand = inHandQty - parsedQty;
+            const updatedAllocated = allocatedQty + parsedQty;
+
+            const updatedRows = await transactionalEntityManager.update(
+              Inventory,
+              { id: inventory.id },
+              {
+                inHandQuantity: updatedInHand.toString(),
+                allocatedQuantity: updatedAllocated.toString(),
+              },
+            );
+
+            return {
+              status: 'OK',
+              type,
+              updated: {
+                inHandQuantity: updatedInHand,
+                allocatedQuantity: updatedAllocated,
+              },
+              updatedRows: updatedRows.affected,
+              data: await this.inventoryRepository.findOne({
+                where: { id: inventory.id },
+              }),
+            };
           }
 
-          if (parsedQty > inHandQty) {
-            throw new BadRequestException('Qty cant be more than in-hand qty');
+          if (type === OrderTypeEnum.INBOUND) {
+            if (!id)
+              throw new BadRequestException(
+                'id is required when type = inbound',
+              );
+
+            const inbound = await transactionalEntityManager.findOne(Inbound, {
+              where: { id, sku },
+            });
+            if (!inbound)
+              throw new NotFoundException(
+                'Inbound record not found for given id & sku',
+              );
+
+            const inboundQty = parseInt(inbound.quantity || '0');
+            const preBooked = parseInt(inbound.preBookedQuantity || '0');
+            const availableQty = inboundQty - preBooked;
+
+            if (parsedQty > availableQty) {
+              throw new BadRequestException(
+                `Requested quantity (${parsedQty}) exceeds available inbound quantity (${availableQty}).`,
+              );
+            }
+
+            const updatedPreBooked = preBooked + parsedQty;
+
+            const updatedRows = await transactionalEntityManager.update(
+              Inbound,
+              { id: inbound.id },
+              { preBookedQuantity: updatedPreBooked.toString() },
+            );
+
+            return {
+              status: 'OK',
+              type,
+              updated: { preBookedQuantity: updatedPreBooked },
+              updatedRows: updatedRows.affected,
+              data: await transactionalEntityManager.findOne(Inbound, {
+                where: { id: inbound.id },
+              }),
+            };
           }
 
-          const updatedInHand = inHandQty - parsedQty;
-          const updatedAllocated = allocatedQuantity + parsedQty;
+          if (type === OrderTypeEnum.CUSTOM) {
+            const customOrder = transactionalEntityManager.create(
+              CustomOrders,
+              {
+                sku,
+                quantity: parsedQty.toString(),
+                status: CustomOrdersStatusEnum.CREATED,
+              },
+            );
 
-          const updatedRows = await transactionalEntityManager.update(
-            Inventory,
-            { id: inventory.id },
-            {
-              inHandQuantity: updatedInHand.toString(),
-              allocatedQuantity: updatedAllocated.toString(),
-            },
-          );
-          const inventoryData = await this.inventoryRepository.findOne({
-            where: { id: inventory.id },
-          });
+            const updatedRows =
+              await transactionalEntityManager.save(customOrder);
 
-          this.logger.log(
-            `Order confirmation successful for SKU: ${sku} | Quantity: ${qty} | Previous In Hand/Allocated QTY: ${inHandQty}/${allocatedQuantity} | Updated In Hand/Allocated QTY: ${updatedInHand}/${updatedAllocated}`,
-          );
+            return {
+              status: 'OK',
+              type,
+              updatedRows: updatedRows ? 1 : 0,
+              data: customOrder,
+            };
+          }
 
-          return {
-            status: 'OK',
-            updatedRows: updatedRows.affected,
-            data: inventoryData,
-          };
+          throw new BadRequestException('Invalid type provided');
         },
       );
-
-      // Log success
 
       await this.webhookLogsService.markAsStored(
         webhookLogId,
         result,
-        `Order confirmation processed successfully for SKU: ${sku}. ` +
-          `Quantity ${qty} moved from in-hand to allocated.`,
+        `Order confirmation processed successfully for SKU: ${sku}, Type: ${payload.type}.`,
       );
 
       return result;
     } catch (error) {
-      // Error log
       if (webhookLogId) {
         await this.webhookLogsService.markAsError(
           webhookLogId,
           `Order confirmation failed: ${error.message}`,
         );
       }
-
       throw new Error(`Order confirmation failed: ${error.message}`);
     }
   }

@@ -1,6 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsString } from 'class-validator';
+import { IsEnum, IsString, ValidateIf } from 'class-validator';
+
+export enum OrderTypeEnum {
+  INVENTORY = 'inventory',
+  CUSTOM = 'custom',
+  INBOUND = 'inbound',
+}
 
 export class OrderConfirmationDto {
   @ApiProperty({
@@ -17,4 +23,22 @@ export class OrderConfirmationDto {
   })
   @IsString()
   qty: string;
+
+  @ApiProperty({
+    description: 'Type of order',
+    enum: OrderTypeEnum,
+    example: OrderTypeEnum.INVENTORY,
+  })
+  @IsEnum(OrderTypeEnum, {
+    message: `type must be one of: ${Object.values(OrderTypeEnum).join(', ')}`,
+  })
+  type: OrderTypeEnum;
+
+  @ApiPropertyOptional({
+    description: 'ID is required only when type = inbound',
+    example: '12345',
+  })
+  @IsString()
+  @ValidateIf((o) => o.type === OrderTypeEnum.INBOUND)
+  id?: string;
 }

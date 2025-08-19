@@ -209,19 +209,54 @@ export class InventoryController {
     This endpoint is used to confirm an order by SKU and adjust the inventory quantity.
     - Validates the SKU
     - Deducts or updates the quantity
+    - Handles different order types (inventory, custom, inbound)
+    - If type = inbound, "id" must be provided
     - Returns confirmation with updated row count
   `,
   })
   @ApiBody({
     type: OrderConfirmationDto,
-    description: 'Order confirmation payload containing SKU and quantity',
+    description: `
+    Order confirmation payload:
+    - sku: SKU of the item
+    - qty: Quantity to confirm (string to handle big numbers)
+    - type: One of [inventory, custom, inbound]
+    - id: Required only when type = inbound
+  `,
+    examples: {
+      inventoryExample: {
+        summary: 'Inventory type example',
+        value: {
+          sku: 'SKU-12345',
+          qty: '1000',
+          type: 'inventory',
+        },
+      },
+      customExample: {
+        summary: 'Custom type example',
+        value: {
+          sku: 'SKU-98765',
+          qty: '500',
+          type: 'custom',
+        },
+      },
+      inboundExample: {
+        summary: 'Inbound type example (id required)',
+        value: {
+          sku: 'SKU-11111',
+          qty: '200',
+          type: 'inbound',
+          id: 'abc123',
+        },
+      },
+    },
   })
   @ApiOkResponse({
     description: 'Order confirmed and inventory updated successfully',
     type: OrderConfirmationResponseDto,
   })
   @ApiBadRequestResponse({
-    description: 'Invalid input (missing or malformed SKU/quantity)',
+    description: 'Invalid input (missing or malformed fields)',
     schema: {
       type: 'object',
       properties: {
@@ -244,7 +279,7 @@ export class InventoryController {
   async orderConfirmation(
     @Body() orderConfirmationDto: OrderConfirmationDto,
     @Request() req: Request,
-  ): Promise<OrderConfirmationResponseDto> {
+  ): Promise<any> {
     return await this.inventoryService.orderConfirmation(
       orderConfirmationDto,
       req,

@@ -9,6 +9,12 @@ import {
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 
+export enum CustomOrdersStatusEnum {
+  CREATED = 'created',
+  DISPATCHED = 'dispatched',
+  DELIVERED = 'delivered',
+}
+
 @Entity('custom_orders')
 export class CustomOrders {
   @ApiProperty({
