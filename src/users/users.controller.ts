@@ -68,8 +68,11 @@ export class UsersController {
     status: HttpStatus.FORBIDDEN,
     description: 'Forbidden - Admin role required',
   })
-  async create(@Body() createUserDto: CreateUserDto): Promise<UserEntity> {
-    return this.usersService.create(createUserDto);
+  async create(
+    @Body() createUserDto: CreateUserDto,
+    @Request() req: Request,
+  ): Promise<UserEntity> {
+    return this.usersService.create(createUserDto, req);
   }
 
   @Put()
@@ -95,8 +98,11 @@ export class UsersController {
     status: HttpStatus.FORBIDDEN,
     description: 'Forbidden - Admin role required',
   })
-  async update(@Body() updateUserDto: UpdateUserDto): Promise<UserEntity> {
-    return this.usersService.update(updateUserDto);
+  async update(
+    @Body() updateUserDto: UpdateUserDto,
+    @Request() req: Request,
+  ): Promise<UserEntity> {
+    return this.usersService.update(updateUserDto, req);
   }
 
   @Post('reset-password')

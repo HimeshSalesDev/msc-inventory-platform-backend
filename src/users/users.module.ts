@@ -8,6 +8,7 @@ import { Role } from '../entities/role.entity';
 import { JwtConfigModule } from '../auth/jwt.module'; // Import shared JWT module
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { AuditEventService } from 'src/audit-log/audit-event.service';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
     ConfigModule,
   ],
   controllers: [UsersController],
-  providers: [UsersService, JwtAuthGuard, RolesGuard],
+  providers: [UsersService, JwtAuthGuard, RolesGuard, AuditEventService],
   exports: [UsersService],
 })
 export class UsersModule {}

@@ -13,6 +13,9 @@ import {
   InboundUpdatedEvent,
   InboundDeletedEvent,
   InboundContainerUpdatedEvent,
+  UserCreatedEvent,
+  UserUpdatedEvent,
+  UserDeletedEvent,
 } from './events/audit.events';
 import { AuditLogType } from 'src/entities/auditLog.entity';
 
@@ -51,6 +54,59 @@ export class AuditEventService {
     userAgent?: string,
   ): void {
     const event = new UserLogoutEvent(userId, userName, ipAddress, userAgent);
+    this.emitAuditEvent(event);
+  }
+
+  emitUserCreated(
+    context: RequestContext,
+    userData: Record<string, any>,
+    newUserId: string,
+  ): void {
+    const event = new UserCreatedEvent(
+      context.userId,
+      context.userName,
+      userData,
+      newUserId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitUserUpdated(
+    context: RequestContext,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    recordId: string,
+  ): void {
+    const event = new UserUpdatedEvent(
+      context.userId,
+      context.userName,
+      previousData,
+      updatedData,
+      recordId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitIUserDeleted(
+    context: RequestContext,
+    userData: Record<string, any>,
+    recordId: string,
+  ): void {
+    const event = new UserDeletedEvent(
+      context.userId,
+      context.userName,
+      userData,
+      recordId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
     this.emitAuditEvent(event);
   }
 

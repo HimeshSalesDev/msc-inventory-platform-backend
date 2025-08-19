@@ -124,6 +124,88 @@ export class UserLoginEvent extends AuditEvent {
   }
 }
 
+export class UserCreatedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    userData: Record<string, any>,
+    newUserId: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.CREATE_USER,
+      'user',
+      newUserId,
+      null,
+      userData,
+      'created',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}
+
+export class UserUpdatedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    recordId: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.UPDATE_USER,
+      'user',
+      recordId,
+      previousData,
+      updatedData,
+      'updated',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}
+
+export class UserDeletedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    userData: Record<string, any>,
+    recordId: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.DELETE_USER,
+      'user',
+      recordId,
+      userData,
+      null,
+      'deleted',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}
+
 export class UserLogoutEvent extends AuditEvent {
   constructor(
     userId: string,
