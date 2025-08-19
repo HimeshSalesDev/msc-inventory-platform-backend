@@ -174,7 +174,7 @@ export class UsersService {
     // Update user
     Object.assign(existingUser, updateData);
     const updatedUser = await this.usersRepository.save(existingUser);
-    console.log(req?.user);
+
     if (req?.user?.id) {
       const requestContext = {
         userId: req.user.id,
