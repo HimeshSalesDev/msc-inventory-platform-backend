@@ -45,6 +45,7 @@ export class InboundService {
       containerNumber,
       sortBy = 'createdAt',
       sortOrder = 'DESC',
+      onlyOffloaded,
     } = queryDto;
 
     const qb = this.inboundRepo.createQueryBuilder('inbound');
@@ -65,6 +66,12 @@ export class InboundService {
       qb.andWhere('inbound.vendorName LIKE :vendorName', {
         vendorName: `%${vendorDescription}%`,
       });
+    }
+
+    if (onlyOffloaded === true) {
+      qb.andWhere('inbound.offloadedDate IS NOT NULL');
+    } else if (onlyOffloaded === false) {
+      qb.andWhere('inbound.offloadedDate IS NULL');
     }
 
     qb.orderBy(`inbound.${sortBy}`, sortOrder);
