@@ -382,9 +382,9 @@ export class InboundService {
         )) {
           let value = row[csvKey];
           if (IMPORT_NUMERIC_FIELDS.includes(entityKey)) {
-            value = value ? parseFloat(value) : null;
+            value = value ? parseFloat(value) : 0;
           }
-          mappedData[entityKey] = value || null;
+          mappedData[entityKey] = value;
         }
 
         const inbound = this.inboundRepo.create(mappedData);

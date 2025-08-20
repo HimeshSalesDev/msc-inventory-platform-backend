@@ -26,10 +26,7 @@ import {
   InventoryMovement,
   InventoryMovementTypeEnums,
 } from 'src/entities/inventory_movements.entity';
-import {
-  InventoryReference,
-  InventoryReferenceStatus,
-} from 'src/entities/inventory_reference.entity';
+import { InventoryReference } from 'src/entities/inventory_reference.entity';
 import { parseSKU, validateSKU } from 'src/lib/sku.util';
 import { normalizeKey } from 'src/lib/stringUtils';
 import { CreateInventoryLocationDto } from './dto/create-inventory-location.dto';
@@ -440,7 +437,6 @@ export class InventoryLocationService {
           }
 
           const data = results.data as any[];
-
           // Validate required columns
           const actualColumns = Object.keys(data[0] || {})
             .filter((col) => col.trim() !== '')
@@ -496,7 +492,8 @@ export class InventoryLocationService {
                 const actualKey = Object.keys(row).find(
                   (col) => normalizeKey(col) === normalizeKey(field),
                 );
-                const value = actualKey ? row[actualKey] : undefined;
+                const value = actualKey ? row[actualKey] || '0' : '0';
+                row[actualKey] = value;
                 if (value && isNaN(parseInt(value))) {
                   errors.push(`${field} must be a valid number`);
                 }
@@ -508,7 +505,6 @@ export class InventoryLocationService {
               if (errors.length > 0) {
                 validationErrors.push({ row: index + 1, errors });
               }
-
               const cleanedRow = Object.fromEntries(
                 Object.entries(row)
                   .filter(([key]) => key.trim() !== '')
@@ -693,10 +689,10 @@ export class InventoryLocationService {
       );
 
       if (numberKeys.includes(prismaKey)) {
-        value = value ? parseFloat(value) : null;
+        value = value ? parseFloat(value) : 0;
       }
 
-      mappedData[prismaKey] = value || null;
+      mappedData[prismaKey] = value;
     }
 
     return mappedData;

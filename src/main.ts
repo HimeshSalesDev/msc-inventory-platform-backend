@@ -3,9 +3,15 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    cors: true,
+  });
+
+  app.useBodyParser('json', { limit: '20mb' });
+  app.useBodyParser('urlencoded', { limit: '20mb', extended: true });
 
   // Validation pipe
   app.useGlobalPipes(
