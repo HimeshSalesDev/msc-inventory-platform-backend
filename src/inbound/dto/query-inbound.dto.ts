@@ -45,7 +45,7 @@ export class QueryInboundDto {
 
   @ApiPropertyOptional({
     description:
-      'If true, only return offloaded records (offloadedDate IS NOT NULL). If false or omitted, return only non-offloaded records.',
+      'If true, only return offloaded records. If false or omitted, return only non-offloaded records.',
     example: true,
   })
   @IsOptional()
