@@ -1,4 +1,4 @@
-export const REQUIRED_FIELDS = ['SKU', 'Length', 'Skirt', 'Foam Density'];
+export const REQUIRED_FIELDS = ['SKU', 'QTY'];
 
 export const PREVIEW_NUMERIC_FIELDS = [
   'Length',
@@ -30,6 +30,15 @@ export const INBOUND_CSV_FILE_COLUMNS = [
   'Material Type',
   'Material Color',
   'PO No',
+  'Container No',
+  'ETD',
+  'ETA',
+  'Shipped',
+];
+
+export const INBOUND_CSV_FILE_REQUIRED_COLUMNS = [
+  'SKU',
+  'QTY',
   'Container No',
   'ETA',
 ];
