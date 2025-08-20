@@ -31,9 +31,7 @@ export const INBOUND_CSV_FILE_COLUMNS = [
   'Material Color',
   'PO No',
   'Container No',
-  'ETD',
   'ETA',
-  'Shipped',
 ];
 
 export const INBOUND_CSV_TO_PRISMA_INVENTORY_MAP = {
@@ -60,29 +58,23 @@ export const INBOUND_CSV_TO_PRISMA_INVENTORY_MAP = {
 
 export const INBOUND_DATE_FIELDS = ['ETD', 'ETA', 'Offloaded Date'];
 
-export const LOCATION_CSV_FILE_COLUMNS = [
-  'SKU',
-  'Bin Number',
-  'Location',
-  'Quantity',
-];
+export const LOCATION_CSV_FILE_COLUMNS = ['SKU', 'BIN', 'Location', 'QTY'];
 
 export const LOCATION_CSV_TO_SQL_KEY_MAP = {
   SKU: 'sku',
-  Quantity: 'quantity',
+  QTY: 'quantity',
   Location: 'location',
-  'Bin Number': 'binNumber',
+  BIN: 'binNumber',
 };
 
-export const LOCATION_CSV_REQUIRED_FIELDS = ['SKU', 'Quantity', 'Bin Number'];
+export const LOCATION_CSV_REQUIRED_FIELDS = ['SKU', 'QTY', 'BIN'];
 export const LOCATION_CSV_VALIDATION_REQUIRED_FIELDS = [
   'SKU',
-  'Quantity',
-  'Bin Number',
+  'BIN',
   'Location',
 ];
 
-export const LOCATION_CSV_PREVIEW_NUMERIC_FIELDS = ['Quantity'];
+export const LOCATION_CSV_PREVIEW_NUMERIC_FIELDS = ['QTY'];
 export const LOCATION_IMPORT_NUMERIC_FIELDS = ['quantity'];
 
 export const DEFAULT_LOCATION = 'CA';
