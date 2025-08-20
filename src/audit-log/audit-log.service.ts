@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AuditLog, AuditLogType } from 'src/entities/auditLog.entity';
 
@@ -131,6 +136,23 @@ export class AuditLogService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  async findOneById(id: string): Promise<AuditLog> {
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
+      throw new BadRequestException('Audit Log ID must be a non-empty string');
+    }
+
+    const auditLog = await this.auditLogRepository.findOne({
+      where: { id: id.trim() },
+      relations: ['user'],
+    });
+
+    if (!auditLog) {
+      throw new NotFoundException(`Audit log with ID "${id}" not found`);
+    }
+
+    return auditLog;
   }
 
   private applyFilters(
