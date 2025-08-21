@@ -47,6 +47,33 @@ export const LOCATION_CSV_VALIDATION_REQUIRED_FIELDS = [
 
 export const LOCATION_CSV_PREVIEW_NUMERIC_FIELDS = ['QTY'];
 
+export const PRE_ORDER_CSV_FILE_REQUIRED_COLUMNS = ['SKU', 'QTY'];
+
+export const PRE_ORDER_PREVIEW_NUMERIC_FIELDS = [
+  'Length',
+  'Width',
+  'Foam Density',
+  'Skirt',
+  'QTY',
+];
+
+export const PRE_ORDER_CSV_FILE_COLUMNS = [
+  'SKU',
+  'QTY',
+  'Length',
+  'Width',
+  'Radius',
+  'Skirt',
+  'Taper',
+  'Foam Density',
+  'Strip Insert',
+  'Shape',
+  'Material Number',
+  'Material Type',
+  'Material Color',
+  'PO No',
+];
+
 // SQL keys constants
 
 export const IMPORT_INBOUND_NUMERIC_FIELDS = [
@@ -57,6 +84,43 @@ export const IMPORT_INBOUND_NUMERIC_FIELDS = [
   'width',
   'radius',
 ];
+
+export const PRE_ORDER_CSV_TO_PRISMA_INVENTORY_MAP = {
+  SKU: 'sku',
+  Length: 'length',
+  Width: 'width',
+  Radius: 'radius',
+  Skirt: 'skirt',
+  Taper: 'taper',
+  'Foam Density': 'foamDensity',
+  'Strip Insert': 'stripInsert',
+  Shape: 'shape',
+  'Material Number': 'materialNumber',
+  'Material Type': 'materialType',
+  'Material Color': 'materialColor',
+  QTY: 'quantity',
+  'PO No': 'poNumber',
+};
+
+export const IMPORT_PRE_ORDER_NUMERIC_FIELDS = [
+  'length',
+  'foamDensity',
+  'skirt',
+  'quantity',
+  'width',
+  'radius',
+];
+
+export const LOCATION_CSV_FILE_COLUMNS = ['SKU', 'BIN', 'Location', 'QTY'];
+
+export const LOCATION_CSV_TO_SQL_KEY_MAP = {
+  SKU: 'sku',
+  QTY: 'quantity',
+  Location: 'location',
+  BIN: 'binNumber',
+};
+
+export const LOCATION_IMPORT_NUMERIC_FIELDS = ['quantity'];
 
 export const INBOUND_CSV_TO_PRISMA_INVENTORY_MAP = {
   SKU: 'sku',
@@ -79,16 +143,5 @@ export const INBOUND_CSV_TO_PRISMA_INVENTORY_MAP = {
   ETA: 'eta',
   Shipped: 'shipped',
 };
-
-export const LOCATION_CSV_FILE_COLUMNS = ['SKU', 'BIN', 'Location', 'QTY'];
-
-export const LOCATION_CSV_TO_SQL_KEY_MAP = {
-  SKU: 'sku',
-  QTY: 'quantity',
-  Location: 'location',
-  BIN: 'binNumber',
-};
-
-export const LOCATION_IMPORT_NUMERIC_FIELDS = ['quantity'];
 
 export const DEFAULT_LOCATION = 'CA';

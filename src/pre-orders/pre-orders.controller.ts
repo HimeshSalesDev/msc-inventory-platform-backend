@@ -235,7 +235,7 @@ export class PreOrdersController {
   })
   async importCsv(
     @Body() body: { data: any[]; filename: string; skipErrors?: boolean },
-    @Request() req,
+    @Request() req: Request,
   ): Promise<any> {
     try {
       const { data, filename, skipErrors } = body;

@@ -16,15 +16,13 @@ import { ProductionBatch } from 'src/entities/production_batches.entity';
 
 import * as Papa from 'papaparse';
 import {
-  IMPORT_NUMERIC_FIELDS,
-  INBOUND_CSV_FILE_COLUMNS,
-  INBOUND_CSV_FILE_REQUIRED_COLUMNS,
-  INBOUND_CSV_TO_PRISMA_INVENTORY_MAP,
-  INBOUND_DATE_FIELDS,
-  PREVIEW_NUMERIC_FIELDS,
+  IMPORT_PRE_ORDER_NUMERIC_FIELDS,
+  PRE_ORDER_CSV_FILE_COLUMNS,
+  PRE_ORDER_CSV_FILE_REQUIRED_COLUMNS,
+  PRE_ORDER_CSV_TO_PRISMA_INVENTORY_MAP,
+  PRE_ORDER_PREVIEW_NUMERIC_FIELDS,
 } from 'src/constants/csv';
 import { normalizeKey } from 'src/lib/stringUtils';
-import { formatDateToYMD } from 'src/lib/dateHelper';
 
 @Injectable()
 export class PreOrdersService {
@@ -187,12 +185,12 @@ export class PreOrdersService {
 
           const data = results.data as any[];
           const actualColumns = Object.keys(data[0] || {}).filter((col) =>
-            INBOUND_CSV_FILE_COLUMNS.some(
+            PRE_ORDER_CSV_FILE_COLUMNS.some(
               (allowedCol) => normalizeKey(allowedCol) === normalizeKey(col),
             ),
           );
 
-          const missingColumns = INBOUND_CSV_FILE_REQUIRED_COLUMNS.filter(
+          const missingColumns = PRE_ORDER_CSV_FILE_REQUIRED_COLUMNS.filter(
             (requiredCol) =>
               !actualColumns
                 .map(normalizeKey)
@@ -215,7 +213,7 @@ export class PreOrdersService {
             const errors: string[] = [];
 
             // Required field validation
-            for (const field of INBOUND_CSV_FILE_REQUIRED_COLUMNS) {
+            for (const field of PRE_ORDER_CSV_FILE_REQUIRED_COLUMNS) {
               const actualKey = Object.keys(row).find(
                 (col) => normalizeKey(col) === normalizeKey(field),
               );
@@ -226,7 +224,7 @@ export class PreOrdersService {
             }
 
             // Numeric field validation
-            for (const field of PREVIEW_NUMERIC_FIELDS) {
+            for (const field of PRE_ORDER_PREVIEW_NUMERIC_FIELDS) {
               const actualKey = Object.keys(row).find(
                 (col) => normalizeKey(col) === normalizeKey(field),
               );
@@ -244,16 +242,16 @@ export class PreOrdersService {
             }
 
             // === DATE FORMATTING ===
-            for (const field of INBOUND_DATE_FIELDS) {
-              const actualKey = Object.keys(row).find(
-                (col) => normalizeKey(col) === normalizeKey(field),
-              );
+            // for (const field of INBOUND_DATE_FIELDS) {
+            //   const actualKey = Object.keys(row).find(
+            //     (col) => normalizeKey(col) === normalizeKey(field),
+            //   );
 
-              if (actualKey && row[actualKey]) {
-                const formatted = formatDateToYMD(row[actualKey]);
-                row[actualKey] = formatted ?? null;
-              }
-            }
+            //   if (actualKey && row[actualKey]) {
+            //     const formatted = formatDateToYMD(row[actualKey]);
+            //     row[actualKey] = formatted ?? null;
+            //   }
+            // }
 
             if (errors.length > 0) {
               validationErrors.push({ row: index + 1, errors });
@@ -262,7 +260,7 @@ export class PreOrdersService {
               Object.entries(row)
                 .filter(([key]) => key.trim() !== '')
                 .filter(([key]) =>
-                  INBOUND_CSV_FILE_COLUMNS.some(
+                  PRE_ORDER_CSV_FILE_COLUMNS.some(
                     (allowedKey) =>
                       normalizeKey(allowedKey) === normalizeKey(key),
                   ),
@@ -311,10 +309,10 @@ export class PreOrdersService {
         const mappedData: any = {};
 
         for (const [csvKey, entityKey] of Object.entries(
-          INBOUND_CSV_TO_PRISMA_INVENTORY_MAP,
+          PRE_ORDER_CSV_TO_PRISMA_INVENTORY_MAP,
         )) {
           let value = row[csvKey];
-          if (IMPORT_NUMERIC_FIELDS.includes(entityKey)) {
+          if (IMPORT_PRE_ORDER_NUMERIC_FIELDS.includes(entityKey)) {
             value = value ? parseFloat(value) : null;
           }
           mappedData[entityKey] = value;
