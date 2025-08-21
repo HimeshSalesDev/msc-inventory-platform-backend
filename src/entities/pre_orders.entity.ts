@@ -48,6 +48,96 @@ export class PreOrder {
   @Column({ type: 'varchar', length: 255, nullable: true })
   poNumber?: string;
 
+  @ApiProperty({
+    description:
+      'Length measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 123.456,
+  })
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
+  length?: number;
+
+  @ApiProperty({
+    description:
+      'Width measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 45.789,
+    required: false,
+  })
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
+  width?: number;
+
+  @ApiProperty({
+    description:
+      'Radius measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 67.321,
+    required: false,
+  })
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
+  radius?: number;
+
+  @ApiProperty({
+    description:
+      'Skirt measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 89.123,
+  })
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
+  skirt?: number;
+
+  @ApiProperty({
+    description: 'Taper specification',
+    example: 'Standard',
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  taper?: string;
+
+  @ApiProperty({
+    description:
+      'Foam density (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    example: 25.123,
+  })
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
+  foamDensity?: number;
+
+  @ApiProperty({
+    description: 'Strip insert specification',
+    example: 'Type A',
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  stripInsert?: string;
+
+  @ApiProperty({
+    description: 'Shape of the inventory item',
+    example: 'Circular',
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  shape?: string;
+
+  @ApiProperty({
+    description: 'Material number identifier',
+    example: 'MAT-001',
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  materialNumber?: string;
+
+  @ApiProperty({
+    description: 'Type of material',
+    example: 'Foam',
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  materialType?: string;
+
+  @ApiProperty({
+    description: 'Color of the material',
+    example: 'Blue',
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  materialColor?: string;
+
   @ApiProperty({ description: 'Creation timestamp' })
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

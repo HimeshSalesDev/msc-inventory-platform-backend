@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -9,6 +13,18 @@ import {
 } from './dto/pre-order-response.dto';
 import { PreOrder, PreOrderStatusEnums } from 'src/entities/pre_orders.entity';
 import { ProductionBatch } from 'src/entities/production_batches.entity';
+
+import * as Papa from 'papaparse';
+import {
+  IMPORT_NUMERIC_FIELDS,
+  INBOUND_CSV_FILE_COLUMNS,
+  INBOUND_CSV_FILE_REQUIRED_COLUMNS,
+  INBOUND_CSV_TO_PRISMA_INVENTORY_MAP,
+  INBOUND_DATE_FIELDS,
+  PREVIEW_NUMERIC_FIELDS,
+} from 'src/constants/csv';
+import { normalizeKey } from 'src/lib/stringUtils';
+import { formatDateToYMD } from 'src/lib/dateHelper';
 
 @Injectable()
 export class PreOrdersService {
@@ -150,6 +166,208 @@ export class PreOrdersService {
       inProduction,
       dispatched,
       remaining,
+    };
+  }
+
+  async previewCsv(csvContent: string, filename: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvContent, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            reject(
+              new BadRequestException({
+                error: 'Failed to parse CSV',
+                details: results.errors,
+              }),
+            );
+            return;
+          }
+
+          const data = results.data as any[];
+          const actualColumns = Object.keys(data[0] || {}).filter((col) =>
+            INBOUND_CSV_FILE_COLUMNS.some(
+              (allowedCol) => normalizeKey(allowedCol) === normalizeKey(col),
+            ),
+          );
+
+          const missingColumns = INBOUND_CSV_FILE_REQUIRED_COLUMNS.filter(
+            (requiredCol) =>
+              !actualColumns
+                .map(normalizeKey)
+                .includes(normalizeKey(requiredCol)),
+          );
+
+          if (missingColumns.length > 0) {
+            reject(
+              new BadRequestException({
+                error: 'Missing required columns',
+                missingColumns,
+                foundColumns: actualColumns,
+              }),
+            );
+            return;
+          }
+
+          const validationErrors: any[] = [];
+          const validatedData = data.map((row, index) => {
+            const errors: string[] = [];
+
+            // Required field validation
+            for (const field of INBOUND_CSV_FILE_REQUIRED_COLUMNS) {
+              const actualKey = Object.keys(row).find(
+                (col) => normalizeKey(col) === normalizeKey(field),
+              );
+              const value = actualKey ? row[actualKey] : undefined;
+              if (!value?.toString().trim()) {
+                errors.push(`${field} is required`);
+              }
+            }
+
+            // Numeric field validation
+            for (const field of PREVIEW_NUMERIC_FIELDS) {
+              const actualKey = Object.keys(row).find(
+                (col) => normalizeKey(col) === normalizeKey(field),
+              );
+              const value = actualKey ? row[actualKey] : undefined;
+
+              if (
+                value !== undefined &&
+                value !== null &&
+                value.toString().trim() !== ''
+              ) {
+                if (isNaN(parseFloat(value))) {
+                  errors.push(`${field} must be a valid number`);
+                }
+              }
+            }
+
+            // === DATE FORMATTING ===
+            for (const field of INBOUND_DATE_FIELDS) {
+              const actualKey = Object.keys(row).find(
+                (col) => normalizeKey(col) === normalizeKey(field),
+              );
+
+              if (actualKey && row[actualKey]) {
+                const formatted = formatDateToYMD(row[actualKey]);
+                row[actualKey] = formatted ?? null;
+              }
+            }
+
+            if (errors.length > 0) {
+              validationErrors.push({ row: index + 1, errors });
+            }
+            const cleanedRow = Object.fromEntries(
+              Object.entries(row)
+                .filter(([key]) => key.trim() !== '')
+                .filter(([key]) =>
+                  INBOUND_CSV_FILE_COLUMNS.some(
+                    (allowedKey) =>
+                      normalizeKey(allowedKey) === normalizeKey(key),
+                  ),
+                ),
+            );
+
+            return {
+              ...cleanedRow,
+              _rowIndex: index + 1,
+              _hasErrors: errors.length > 0,
+            };
+          });
+
+          resolve({
+            data: validatedData,
+            totalRows: data.length,
+            validationErrors,
+            columns: actualColumns,
+            filename,
+            hasErrors: validationErrors.length > 0,
+          });
+        },
+      });
+    });
+  }
+
+  async importCsv(
+    data: any[],
+    filename: string,
+    skipErrors = false,
+    req: any,
+  ): Promise<any> {
+    const dataToImport = skipErrors
+      ? data.filter((row) => !row._hasErrors)
+      : data;
+
+    if (dataToImport.length === 0) {
+      throw new BadRequestException('No valid data to import');
+    }
+
+    const successfulImports = [];
+    const failedImports = [];
+
+    for (const row of dataToImport) {
+      try {
+        const mappedData: any = {};
+
+        for (const [csvKey, entityKey] of Object.entries(
+          INBOUND_CSV_TO_PRISMA_INVENTORY_MAP,
+        )) {
+          let value = row[csvKey];
+          if (IMPORT_NUMERIC_FIELDS.includes(entityKey)) {
+            value = value ? parseFloat(value) : null;
+          }
+          mappedData[entityKey] = value;
+        }
+
+        const inbound = this.preOrderRepository.create(mappedData);
+        const result = await this.preOrderRepository.save(inbound);
+
+        successfulImports.push(result);
+      } catch (error) {
+        // this.logger.error(`Error importing row ${row._rowIndex}`, {
+        //   error,
+        //   row,
+        //   user: req?.user?.email,
+        //   filename,
+        // });
+
+        failedImports.push({
+          ...row,
+          errorMessage:
+            error instanceof Error ? error.message : 'Unknown error',
+          _hasErrors: true,
+        });
+      }
+    }
+
+    // ✅ Emit audit logs for each successfully imported inbound
+    // if (req?.user?.id) {
+    //   const requestContext = {
+    //     userId: req?.user.id,
+    //     userName: req?.user.fullName,
+    //     ipAddress: req?.ip,
+    //     userAgent: req?.get('User-Agent'),
+    //     controllerPath: req.route?.path || req.originalUrl,
+    //   };
+
+    //   for (const inboundData of successfulImports) {
+    //     this.auditEventService.emitInboundCreated(
+    //       requestContext,
+    //       inboundData,
+    //       inboundData.id,
+    //     );
+    //   }
+    // }
+
+    return {
+      success: true,
+      filename,
+      totalProcessed: dataToImport.length,
+      imported: successfulImports.length,
+      failed: failedImports.length,
+      failures: failedImports,
+      importedItems: successfulImports,
     };
   }
 }
