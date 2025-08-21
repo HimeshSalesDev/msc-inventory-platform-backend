@@ -290,7 +290,7 @@ export class InboundService {
             const errors: string[] = [];
 
             // Required field validation
-            for (const field of REQUIRED_FIELDS) {
+            for (const field of INBOUND_CSV_FILE_REQUIRED_COLUMNS) {
               const actualKey = Object.keys(row).find(
                 (col) => normalizeKey(col) === normalizeKey(field),
               );
@@ -408,9 +408,10 @@ export class InboundService {
         });
 
         failedImports.push({
-          row: row._rowIndex,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          data: row,
+          ...row,
+          errorMessage:
+            error instanceof Error ? error.message : 'Unknown error',
+          _hasErrors: true,
         });
       }
     }
