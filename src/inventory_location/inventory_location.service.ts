@@ -56,6 +56,13 @@ type InventoryLocationResponse = {
     totalPages: number;
   };
 };
+
+type ImportRow = Record<string, unknown>;
+
+interface FailedRow extends ImportRow {
+  errorMessage: string;
+  _hasErrors: true;
+}
 @Injectable()
 export class InventoryLocationService {
   private readonly logger = new Logger(InventoryLocationService.name);
@@ -563,11 +570,12 @@ export class InventoryLocationService {
     await queryRunner.startTransaction();
 
     const successfulImports: any[] = [];
-    const failedImports: any[] = [];
+    const failedImports: FailedRow[] = [];
 
     try {
       // Group data by SKU to handle multiple locations per SKU efficiently
-      const groupedData = this.groupDataBySku(dataToImport);
+      const groupedData: Record<string, ImportRow[]> =
+        this.groupDataBySku(dataToImport);
 
       for (const [sku, rows] of Object.entries(groupedData)) {
         try {
@@ -586,15 +594,16 @@ export class InventoryLocationService {
             rowCount: rows.length,
             user: user?.email,
           });
-
           // Add all rows for this SKU to failed imports
-          failedImports.push(
-            ...rows.map((row) => ({
-              row: row._rowIndex,
-              data: row,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            })),
-          );
+
+          const failedData: FailedRow[] = rows.map((row) => ({
+            ...row,
+            errorMessage:
+              error instanceof Error ? error.message : 'Unknown error',
+            _hasErrors: true,
+          }));
+
+          failedImports.push(...failedData);
         }
       }
 
