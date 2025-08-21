@@ -16,13 +16,12 @@ import { QueryInboundDto } from './dto/query-inbound.dto';
 
 import { normalizeKey } from 'src/lib/stringUtils';
 import {
-  IMPORT_NUMERIC_FIELDS,
+  IMPORT_INBOUND_NUMERIC_FIELDS,
   INBOUND_CSV_FILE_COLUMNS,
   INBOUND_CSV_FILE_REQUIRED_COLUMNS,
   INBOUND_CSV_TO_PRISMA_INVENTORY_MAP,
   INBOUND_DATE_FIELDS,
   PREVIEW_NUMERIC_FIELDS,
-  REQUIRED_FIELDS,
 } from 'src/constants/csv';
 import { formatDateToYMD } from 'src/lib/dateHelper';
 import { UpdateContainerFieldDto } from './dto/update-container-field.dto';
@@ -389,7 +388,7 @@ export class InboundService {
           INBOUND_CSV_TO_PRISMA_INVENTORY_MAP,
         )) {
           let value = row[csvKey];
-          if (IMPORT_NUMERIC_FIELDS.includes(entityKey)) {
+          if (IMPORT_INBOUND_NUMERIC_FIELDS.includes(entityKey)) {
             value = value ? parseFloat(value) : null;
           }
           mappedData[entityKey] = value;
