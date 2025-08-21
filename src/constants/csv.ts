@@ -1,17 +1,10 @@
-export const REQUIRED_FIELDS = ['SKU', 'QTY'];
+// CSV keys constants
 
 export const PREVIEW_NUMERIC_FIELDS = [
   'Length',
   'Foam Density',
   'Skirt',
   'QTY',
-];
-
-export const IMPORT_NUMERIC_FIELDS = [
-  'Length',
-  'Foam Density',
-  'Skirt',
-  'quantity',
 ];
 
 export const INBOUND_CSV_FILE_COLUMNS = [
@@ -43,6 +36,28 @@ export const INBOUND_CSV_FILE_REQUIRED_COLUMNS = [
   'ETA',
 ];
 
+export const INBOUND_DATE_FIELDS = ['ETD', 'ETA', 'Offloaded Date'];
+
+export const LOCATION_CSV_REQUIRED_FIELDS = ['SKU', 'QTY', 'BIN'];
+export const LOCATION_CSV_VALIDATION_REQUIRED_FIELDS = [
+  'SKU',
+  'BIN',
+  'Location',
+];
+
+export const LOCATION_CSV_PREVIEW_NUMERIC_FIELDS = ['QTY'];
+
+// SQL keys constants
+
+export const IMPORT_INBOUND_NUMERIC_FIELDS = [
+  'length',
+  'foamDensity',
+  'skirt',
+  'quantity',
+  'width',
+  'radius',
+];
+
 export const INBOUND_CSV_TO_PRISMA_INVENTORY_MAP = {
   SKU: 'sku',
   'Vendor Description': 'vendorDescription',
@@ -65,8 +80,6 @@ export const INBOUND_CSV_TO_PRISMA_INVENTORY_MAP = {
   Shipped: 'shipped',
 };
 
-export const INBOUND_DATE_FIELDS = ['ETD', 'ETA', 'Offloaded Date'];
-
 export const LOCATION_CSV_FILE_COLUMNS = ['SKU', 'BIN', 'Location', 'QTY'];
 
 export const LOCATION_CSV_TO_SQL_KEY_MAP = {
@@ -76,14 +89,6 @@ export const LOCATION_CSV_TO_SQL_KEY_MAP = {
   BIN: 'binNumber',
 };
 
-export const LOCATION_CSV_REQUIRED_FIELDS = ['SKU', 'QTY', 'BIN'];
-export const LOCATION_CSV_VALIDATION_REQUIRED_FIELDS = [
-  'SKU',
-  'BIN',
-  'Location',
-];
-
-export const LOCATION_CSV_PREVIEW_NUMERIC_FIELDS = ['QTY'];
 export const LOCATION_IMPORT_NUMERIC_FIELDS = ['quantity'];
 
 export const DEFAULT_LOCATION = 'CA';
