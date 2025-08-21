@@ -137,7 +137,7 @@ export class UsersService {
     // Check email uniqueness if email is being updated
     if (email && email !== existingUser.email) {
       const emailExists = await this.usersRepository.findOne({
-        where: { email, id: { $ne: id } as any },
+        where: { email, id: Not(id) },
       });
 
       if (emailExists) {

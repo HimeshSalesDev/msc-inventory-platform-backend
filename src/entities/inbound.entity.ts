@@ -87,8 +87,8 @@ export class Inbound {
       'Length measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
     example: 123.456,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3 })
-  length: number;
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
+  length?: number;
 
   @ApiProperty({
     description:
@@ -113,8 +113,8 @@ export class Inbound {
       'Skirt measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
     example: 89.123,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3 })
-  skirt: number;
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
+  skirt?: number;
 
   @ApiProperty({
     description: 'Taper specification',
@@ -129,8 +129,8 @@ export class Inbound {
       'Foam density (max 6 digits total, with 3 decimal places, e.g. 999.999)',
     example: 25.123,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3 })
-  foamDensity: number;
+  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
+  foamDensity?: number;
 
   @ApiProperty({
     description: 'Strip insert specification',

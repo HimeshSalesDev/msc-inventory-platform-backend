@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsIn } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsOptional, IsString, IsIn, IsBoolean } from 'class-validator';
 
 export class QueryInboundDto {
   @ApiPropertyOptional({
@@ -41,6 +42,16 @@ export class QueryInboundDto {
   @IsString()
   @IsIn(['poNumber', 'containerNumber', 'vendorName', 'createdAt', 'updatedAt'])
   sortBy?: string = 'createdAt';
+
+  @ApiPropertyOptional({
+    description:
+      'If true, only return offloaded records. If false or omitted, return only non-offloaded records.',
+    example: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true')
+  @IsBoolean()
+  onlyOffloaded?: boolean;
 
   @ApiPropertyOptional({
     description: 'Sort order',

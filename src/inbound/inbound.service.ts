@@ -18,6 +18,7 @@ import { normalizeKey } from 'src/lib/stringUtils';
 import {
   IMPORT_NUMERIC_FIELDS,
   INBOUND_CSV_FILE_COLUMNS,
+  INBOUND_CSV_FILE_REQUIRED_COLUMNS,
   INBOUND_CSV_TO_PRISMA_INVENTORY_MAP,
   INBOUND_DATE_FIELDS,
   PREVIEW_NUMERIC_FIELDS,
@@ -45,6 +46,7 @@ export class InboundService {
       containerNumber,
       sortBy = 'createdAt',
       sortOrder = 'DESC',
+      onlyOffloaded,
     } = queryDto;
 
     const qb = this.inboundRepo.createQueryBuilder('inbound');
@@ -65,6 +67,12 @@ export class InboundService {
       qb.andWhere('inbound.vendorName LIKE :vendorName', {
         vendorName: `%${vendorDescription}%`,
       });
+    }
+
+    if (onlyOffloaded === true) {
+      qb.andWhere('inbound.offloadedDate IS NOT NULL');
+    } else if (onlyOffloaded === false) {
+      qb.andWhere('inbound.offloadedDate IS NULL');
     }
 
     qb.orderBy(`inbound.${sortBy}`, sortOrder);
@@ -259,7 +267,7 @@ export class InboundService {
             ),
           );
 
-          const missingColumns = INBOUND_CSV_FILE_COLUMNS.filter(
+          const missingColumns = INBOUND_CSV_FILE_REQUIRED_COLUMNS.filter(
             (requiredCol) =>
               !actualColumns
                 .map(normalizeKey)
@@ -282,7 +290,7 @@ export class InboundService {
             const errors: string[] = [];
 
             // Required field validation
-            for (const field of REQUIRED_FIELDS) {
+            for (const field of INBOUND_CSV_FILE_REQUIRED_COLUMNS) {
               const actualKey = Object.keys(row).find(
                 (col) => normalizeKey(col) === normalizeKey(field),
               );
@@ -298,8 +306,15 @@ export class InboundService {
                 (col) => normalizeKey(col) === normalizeKey(field),
               );
               const value = actualKey ? row[actualKey] : undefined;
-              if (value && isNaN(parseFloat(value))) {
-                errors.push(`${field} must be a valid number`);
+
+              if (
+                value !== undefined &&
+                value !== null &&
+                value.toString().trim() !== ''
+              ) {
+                if (isNaN(parseFloat(value))) {
+                  errors.push(`${field} must be a valid number`);
+                }
               }
             }
 
@@ -377,7 +392,7 @@ export class InboundService {
           if (IMPORT_NUMERIC_FIELDS.includes(entityKey)) {
             value = value ? parseFloat(value) : null;
           }
-          mappedData[entityKey] = value || null;
+          mappedData[entityKey] = value;
         }
 
         const inbound = this.inboundRepo.create(mappedData);
@@ -393,28 +408,30 @@ export class InboundService {
         });
 
         failedImports.push({
-          row: row._rowIndex,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          data: row,
+          ...row,
+          errorMessage:
+            error instanceof Error ? error.message : 'Unknown error',
+          _hasErrors: true,
         });
       }
-      // ✅ Emit audit logs for each successfully imported inbound
-      if (req?.user?.id) {
-        const requestContext = {
-          userId: req?.user.id,
-          userName: req?.user.fullName,
-          ipAddress: req?.ip,
-          userAgent: req?.get('User-Agent'),
-          controllerPath: req.route?.path || req.originalUrl,
-        };
+    }
 
-        for (const inboundData of successfulImports) {
-          this.auditEventService.emitInboundCreated(
-            requestContext,
-            inboundData,
-            inboundData.id,
-          );
-        }
+    // ✅ Emit audit logs for each successfully imported inbound
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req?.user.id,
+        userName: req?.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+
+      for (const inboundData of successfulImports) {
+        this.auditEventService.emitInboundCreated(
+          requestContext,
+          inboundData,
+          inboundData.id,
+        );
       }
     }
 
