@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,12 +10,14 @@ import { Repository } from 'typeorm';
 
 import { ProductionBatchResponseDto } from './dto/production-batch-response.dto';
 import { ProductionBatch } from 'src/entities/production_batches.entity';
-import { PreOrder } from 'src/entities/pre_orders.entity';
+import { PreOrder, PreOrderStatusEnums } from 'src/entities/pre_orders.entity';
 import { Inbound } from 'src/entities/inbound.entity';
 import { MoveToShippedDto } from './dto/production-batch.dto';
+import { AuditEventService } from 'src/audit-log/audit-event.service';
 
 @Injectable()
 export class ProductionBatchesService {
+  private readonly logger = new Logger(ProductionBatchesService.name);
   constructor(
     @InjectRepository(ProductionBatch)
     private productionBatchRepository: Repository<ProductionBatch>,
@@ -23,6 +26,7 @@ export class ProductionBatchesService {
 
     @InjectRepository(Inbound)
     private inboundRepository: Repository<Inbound>,
+    private auditEventService: AuditEventService,
   ) {}
 
   async findAll(): Promise<ProductionBatchResponseDto[]> {
@@ -184,13 +188,90 @@ export class ProductionBatchesService {
       offloadedDate: null,
     });
 
-    try {
-      // Save the inbound record
-      const savedInbound = await this.inboundRepository.save(inboundRecord);
+    const savedInbound = await this.inboundRepository.save(inboundRecord);
 
-      return savedInbound;
-    } catch {
-      throw new InternalServerErrorException('Failed to create shipped record');
+    // Check if all quantities for this pre-order have been shipped
+    await this.checkAndUpdatePreOrderStatus(productionBatch.preOrder.id);
+
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+
+      this.auditEventService.emitInboundCreated(
+        requestContext,
+        savedInbound,
+        savedInbound.id,
+      );
+    }
+
+    return savedInbound;
+  }
+
+  private async checkAndUpdatePreOrderStatus(
+    preOrderId: string,
+  ): Promise<void> {
+    try {
+      // Get pre-order total quantity
+      const preOrder = await this.preOrderRepository.findOne({
+        where: { id: preOrderId },
+        select: ['quantity', 'status'],
+      });
+
+      if (!preOrder) {
+        return; // Pre-order not found, nothing to update
+      }
+
+      // Get all production batch IDs for this pre-order
+      const productionBatchResults: ProductionBatch[] =
+        await this.productionBatchRepository
+          .createQueryBuilder('pb')
+          .select(['pb.id as id'])
+          .where('pb.preOrderId = :preOrderId', { preOrderId })
+          .getRawMany();
+
+      const productionBatchIds = productionBatchResults.map(
+        (batch) => batch.id,
+      );
+
+      // Get total quantity shipped for all production batches
+      let totalShipped = 0;
+      if (productionBatchIds.length > 0) {
+        const shippedResult = await this.inboundRepository
+          .createQueryBuilder('inbound')
+          .select(
+            'COALESCE(SUM(CONVERT(inbound.quantity, SIGNED)), 0)',
+            'total',
+          )
+          .where('inbound.productionBatchId IN (:...batchIds)', {
+            batchIds: productionBatchIds,
+          })
+          .getRawOne();
+
+        totalShipped = parseInt(shippedResult?.total || '0');
+      }
+
+      // Check if all quantities have been shipped
+      // Check against original pre-order quantity
+      const isFullyShipped = totalShipped >= preOrder.quantity;
+
+      // Update pre-order status to completed if fully shipped
+      if (
+        isFullyShipped &&
+        preOrder.status !== PreOrderStatusEnums.Completed.toString()
+      ) {
+        await this.preOrderRepository.update(
+          { id: preOrderId },
+          { status: PreOrderStatusEnums.Completed },
+        );
+      }
+    } catch (error) {
+      // Log the error but don't throw to avoid breaking the main flow
+      this.logger.error('Failed to update pre-order status:', error);
     }
   }
 }

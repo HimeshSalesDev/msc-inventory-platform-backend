@@ -23,6 +23,7 @@ import {
   PRE_ORDER_PREVIEW_NUMERIC_FIELDS,
 } from 'src/constants/csv';
 import { normalizeKey } from 'src/lib/stringUtils';
+import { Inbound } from 'src/entities/inbound.entity';
 
 @Injectable()
 export class PreOrdersService {
@@ -31,6 +32,8 @@ export class PreOrdersService {
     private preOrderRepository: Repository<PreOrder>,
     @InjectRepository(ProductionBatch)
     private productionBatchRepository: Repository<ProductionBatch>,
+    @InjectRepository(Inbound)
+    private inboundRepository: Repository<Inbound>,
   ) {}
 
   async create(
@@ -133,25 +136,36 @@ export class PreOrdersService {
   private async calculateCounts(
     preOrderId: string,
   ): Promise<PreOrderCountsDto> {
-    // Get total quantity in production
-    const inProductionResult = await this.productionBatchRepository
-      .createQueryBuilder('pb')
-      .select('COALESCE(SUM(pb.quantityInProduction), 0)', 'total')
-      .where('pb.preOrderId = :preOrderId', { preOrderId })
-      .getRawOne();
+    // Get total quantity in production and collect batch IDs
+    const productionBatchResults: ProductionBatch[] =
+      await this.productionBatchRepository
+        .createQueryBuilder('pb')
+        .select([
+          'pb.id as id',
+          'pb.quantityInProduction as quantityInProduction',
+        ])
+        .where('pb.preOrderId = :preOrderId', { preOrderId })
+        .getRawMany();
 
-    const inProduction = parseInt(inProductionResult?.total || '0');
+    const inProduction = productionBatchResults.reduce(
+      (sum, batch) => sum + batch.quantityInProduction,
+      0,
+    );
 
-    // Get total quantity dispatched
-    // const dispatchedResult = await this.dispatchedPreOrderRepository
-    //   .createQueryBuilder('dpo')
-    //   .innerJoin('dpo.productionBatch', 'pb')
-    //   .select('COALESCE(SUM(dpo.quantityDispatched), 0)', 'total')
-    //   .where('pb.preOrderId = :preOrderId', { preOrderId })
-    //   .getRawOne();
+    const productionBatchIds = productionBatchResults.map((batch) => batch.id);
 
-    // const dispatched = parseInt(dispatchedResult?.total || '0');
-    const dispatched = 0;
+    let dispatched = 0;
+    if (productionBatchIds.length > 0) {
+      const dispatchedResult = await this.inboundRepository
+        .createQueryBuilder('inbound')
+        .select('COALESCE(SUM(CONVERT(inbound.quantity, SIGNED)), 0)', 'total')
+        .where('inbound.productionBatchId IN (:...batchIds)', {
+          batchIds: productionBatchIds,
+        })
+        .getRawOne();
+
+      dispatched = parseInt(dispatchedResult?.total || '0');
+    }
     // Get pre-order total quantity to calculate remaining
     const preOrder = await this.preOrderRepository.findOne({
       where: { id: preOrderId },
@@ -281,6 +295,10 @@ export class PreOrdersService {
     skipErrors = false,
     req: any,
   ): Promise<any> {
+    if (!req?.user?.id) {
+      throw new BadRequestException('Unauthorize user');
+    }
+
     const dataToImport = skipErrors
       ? data.filter((row) => !row._hasErrors)
       : data;
@@ -306,9 +324,10 @@ export class PreOrdersService {
           mappedData[entityKey] = value;
         }
 
-        const data: PreOrder = this.preOrderRepository.create(
-          mappedData as PreOrder,
-        );
+        const data: PreOrder = this.preOrderRepository.create({
+          ...(mappedData as PreOrder),
+          createdBy: req.user.id,
+        });
         const result = await this.preOrderRepository.save(data);
 
         // Insert into ProductionBatch
@@ -320,7 +339,7 @@ export class PreOrdersService {
             this.productionBatchRepository.create({
               preOrderId: result.id,
               quantityInProduction: mappedData.quantity,
-              movedBy: req?.user?.id,
+              movedBy: req.user.id,
             }),
           );
         }
@@ -331,13 +350,6 @@ export class PreOrdersService {
 
         successfulImports.push(result);
       } catch (error) {
-        // this.logger.error(`Error importing row ${row._rowIndex}`, {
-        //   error,
-        //   row,
-        //   user: req?.user?.email,
-        //   filename,
-        // });
-
         failedImports.push({
           ...row,
           errorMessage:

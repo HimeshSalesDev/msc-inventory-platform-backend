@@ -9,6 +9,7 @@ import { JwtConfigModule } from 'src/auth/jwt.module';
 import { UsersModule } from 'src/users/users.module';
 import { ConfigModule } from '@nestjs/config';
 import { Inbound } from 'src/entities/inbound.entity';
+import { AuditLogModule } from 'src/audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Inbound } from 'src/entities/inbound.entity';
     JwtConfigModule,
     UsersModule,
     ConfigModule,
+    AuditLogModule,
   ],
   controllers: [ProductionBatchesController],
   providers: [ProductionBatchesService],

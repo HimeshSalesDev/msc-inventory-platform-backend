@@ -8,10 +8,11 @@ import { ConfigModule } from '@nestjs/config';
 import { ProductionBatch } from 'src/entities/production_batches.entity';
 import { PreOrder } from 'src/entities/pre_orders.entity';
 import { UsersModule } from 'src/users/users.module';
+import { Inbound } from 'src/entities/inbound.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Role, PreOrder, ProductionBatch]),
+    TypeOrmModule.forFeature([Role, PreOrder, ProductionBatch, Inbound]),
     JwtConfigModule,
     UsersModule,
     ConfigModule,
