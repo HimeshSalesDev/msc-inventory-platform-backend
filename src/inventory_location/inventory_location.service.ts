@@ -742,21 +742,38 @@ export class InventoryLocationService {
 
       const productInfo = parseSKU(sku);
 
+      let mappedData = null;
+
+      if (rows && rows?.length > 0) {
+        mappedData = rows[0].mappedData;
+      }
+
       inventory = queryRunner.manager.create(Inventory, {
         sku,
         quantity: '0',
         inHandQuantity: '0',
-        vendorDescription: productInfo.description || '',
-        length: productInfo.length,
-        skirt: productInfo.skirtLength,
-        foamDensity: productInfo.foam,
-        width: productInfo.width,
-        radius: productInfo.radius,
-        taper: productInfo.taper,
-        materialNumber: productInfo.colorCode
-          ? productInfo.colorCode.toString()
-          : null,
-        materialColor: productInfo.colorName,
+        vendorDescription: this.getValue(
+          mappedData?.vendorDescription,
+          productInfo.description,
+        ),
+        length: this.getValue(mappedData?.length, productInfo.length),
+        skirt: this.getValue(mappedData?.skirt, productInfo.skirtLength),
+        stripInsert: this.getValue(mappedData?.stripInsert, ''),
+        shape: this.getValue(mappedData?.shape, ''),
+        foamDensity: this.getValue(mappedData?.foamDensity, productInfo.foam),
+        width: this.getValue(mappedData?.width, productInfo.width),
+        radius: this.getValue(mappedData?.radius, productInfo.radius),
+        taper: this.getValue(mappedData?.taper, productInfo.taper),
+        materialNumber: this.getValue(
+          mappedData?.materialNumber,
+          productInfo?.colorCode?.toString(),
+          null,
+        ),
+        materialColor: this.getValue(
+          mappedData?.materialColor,
+          productInfo?.colorName,
+        ),
+        materialType: this.getValue(mappedData?.materialType, ''),
       });
       inventory = await queryRunner.manager.save(Inventory, inventory);
       isNewInventory = true;
@@ -1134,4 +1151,24 @@ export class InventoryLocationService {
 
     return result?.total ? result.total.toString() : '0';
   }
+
+  private getValue = (primaryValue, fallbackValue, defaultValue = ''): any => {
+    const processValue = (value): any => {
+      if (value === undefined || value === null) return null;
+      const trimmed = value.toString().trim();
+      return trimmed === '' ? null : trimmed;
+    };
+
+    const processedPrimary = processValue(primaryValue);
+    if (processedPrimary !== null) {
+      return processedPrimary;
+    }
+
+    const processedFallback = processValue(fallbackValue);
+    if (processedFallback !== null) {
+      return processedFallback;
+    }
+
+    return defaultValue;
+  };
 }

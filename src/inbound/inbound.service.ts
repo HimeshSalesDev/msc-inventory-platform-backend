@@ -323,8 +323,10 @@ export class InboundService {
                 (col) => normalizeKey(col) === normalizeKey(field),
               );
 
-              if (actualKey && row[actualKey]) {
-                const formatted = formatDateToYMD(row[actualKey]);
+              if (actualKey) {
+                const formatted = row[actualKey]
+                  ? formatDateToYMD(row[actualKey])
+                  : null;
                 row[actualKey] = formatted ?? null;
               }
             }
