@@ -27,7 +27,7 @@ export class CreatePreOrderDto {
   @IsInt()
   @Min(1)
   @IsNotEmpty()
-  totalQuantity: number;
+  quantity: number;
 
   @ApiProperty({
     description: 'Purchase Order number',

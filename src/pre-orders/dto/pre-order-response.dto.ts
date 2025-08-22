@@ -37,7 +37,7 @@ export class PreOrderResponseDto {
     description: 'Total quantity ordered',
     example: 100,
   })
-  totalQuantity: number;
+  quantity: number;
 
   @ApiProperty({
     description: 'User who created the order',

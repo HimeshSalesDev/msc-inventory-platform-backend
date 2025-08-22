@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   Index,
   OneToMany,
+  DeleteDateColumn,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { InventoryLocation } from './inventory_location.entity';
@@ -36,38 +37,34 @@ export class Inventory {
   vendorDescription?: string;
 
   @ApiProperty({
-    description:
-      'Length measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
-    example: 123.456,
+    description: 'Length measurement',
+    example: '123.456',
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3 })
-  length: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  length?: string;
 
   @ApiProperty({
-    description:
-      'Width measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
-    example: 45.789,
+    description: 'Width measurement ',
+    example: '45.789',
     required: false,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  width?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  width?: string;
 
   @ApiProperty({
-    description:
-      'Radius measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
-    example: 67.321,
+    description: 'Radius measurement ',
+    example: '67.321',
     required: false,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  radius?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  radius?: string;
 
   @ApiProperty({
-    description:
-      'Skirt measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    description: 'Skirt measurement ',
     example: 89.123,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3 })
-  skirt: number;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  skirt?: string;
 
   @ApiProperty({
     description: 'Taper specification',
@@ -78,12 +75,11 @@ export class Inventory {
   taper?: string;
 
   @ApiProperty({
-    description:
-      'Foam density (max 6 digits total, with 3 decimal places, e.g. 999.999)',
-    example: 25.123,
+    description: 'Foam density ',
+    example: '25.123',
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3 })
-  foamDensity: number;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  foamDensity?: string;
 
   @ApiProperty({
     description: 'Strip insert specification',
@@ -176,4 +172,7 @@ export class Inventory {
     required: false,
   })
   inventoryLocations: InventoryLocation[];
+
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt: Date;
 }

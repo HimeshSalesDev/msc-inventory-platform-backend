@@ -1,18 +1,12 @@
 import {
   IsString,
-  IsNumber,
   IsOptional,
   IsNotEmpty,
   Length,
-  Min,
-  Max,
   Matches,
   IsDateString,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-
-const MAX_DECIMAL = 999.999;
 
 export class CreateInboundDto {
   // Inbound-specific fields
@@ -94,57 +88,36 @@ export class CreateInboundDto {
   vendorDescription?: string;
 
   @ApiProperty({
-    description: 'Length (max value: 999.999, up to 3 decimal places)',
-    example: 123.456,
-    minimum: 0,
-    maximum: MAX_DECIMAL,
+    description: 'Length ',
+    example: '123.456',
   })
-  @IsNumber(
-    { maxDecimalPlaces: 3 },
-    { message: 'Length must be a number with up to 3 decimal places only' },
-  )
-  @Min(0)
-  @Max(MAX_DECIMAL)
-  @Type(() => Number)
-  length: number;
+  @IsOptional()
+  @IsString()
+  length?: string;
 
   @ApiPropertyOptional({
-    description: 'Width (max value: 999.999, up to 3 decimal places)',
+    description: 'Width ',
     example: 45.789,
   })
   @IsOptional()
-  @IsNumber(
-    { maxDecimalPlaces: 3 },
-    { message: 'Width must be a number with up to 3 decimal places only' },
-  )
-  @Min(0)
-  @Max(MAX_DECIMAL)
-  @Type(() => Number)
-  width?: number;
+  @IsString()
+  width?: string;
 
   @ApiPropertyOptional({
-    description: 'Radius (max value: 999.999, up to 3 decimal places)',
-    example: 67.321,
+    description: 'Radius ',
+    example: '67.321',
   })
   @IsOptional()
-  @IsNumber(
-    { maxDecimalPlaces: 3 },
-    { message: 'Radius must be a number with up to 3 decimal places only' },
-  )
-  @Min(0)
-  @Max(MAX_DECIMAL)
-  @Type(() => Number)
-  radius?: number;
+  @IsString()
+  radius?: string;
 
   @ApiProperty({
-    description: 'Skirt (max value: 999.999, up to 3 decimal places)',
-    example: 89.123,
+    description: 'Skirt ',
+    example: '89.123',
   })
-  @IsNumber({ maxDecimalPlaces: 3 })
-  @Min(0)
-  @Max(MAX_DECIMAL)
-  @Type(() => Number)
-  skirt: number;
+  @IsOptional()
+  @IsString()
+  skirt?: string;
 
   @ApiPropertyOptional({
     description: 'Taper specification',
@@ -157,19 +130,12 @@ export class CreateInboundDto {
   taper?: string;
 
   @ApiProperty({
-    description: 'Foam density (max value: 999.999, up to 3 decimal places)',
-    example: 25.123,
+    description: 'Foam density ',
+    example: '25.123',
   })
-  @IsNumber(
-    { maxDecimalPlaces: 3 },
-    {
-      message: 'Foam density must be a number with up to 3 decimal places only',
-    },
-  )
-  @Min(0)
-  @Max(MAX_DECIMAL)
-  @Type(() => Number)
-  foamDensity: number;
+  @IsOptional()
+  @IsString()
+  foamDensity?: string;
 
   @ApiPropertyOptional({
     description: 'Strip insert specification',

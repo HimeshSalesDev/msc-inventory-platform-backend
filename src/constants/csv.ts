@@ -47,7 +47,7 @@ export const LOCATION_CSV_VALIDATION_REQUIRED_FIELDS = [
 
 export const LOCATION_CSV_PREVIEW_NUMERIC_FIELDS = ['QTY'];
 
-export const PRE_ORDER_CSV_FILE_REQUIRED_COLUMNS = ['SKU', 'QTY'];
+export const PRE_ORDER_CSV_FILE_REQUIRED_COLUMNS = ['SKU', 'Production QTY'];
 
 export const PRE_ORDER_PREVIEW_NUMERIC_FIELDS = [
   'Length',
@@ -59,7 +59,7 @@ export const PRE_ORDER_PREVIEW_NUMERIC_FIELDS = [
 
 export const PRE_ORDER_CSV_FILE_COLUMNS = [
   'SKU',
-  'QTY',
+  'Production QTY',
   'Length',
   'Width',
   'Radius',
@@ -71,8 +71,14 @@ export const PRE_ORDER_CSV_FILE_COLUMNS = [
   'Material Number',
   'Material Type',
   'Material Color',
-  'PO No',
+  'PO Number',
+  // 'Shipped',
+  // 'Available Stock',
+  // 'Container No',
+  // 'ETA',
 ];
+
+export const PRE_ORDER_DATE_FIELDS = ['ETA'];
 
 // SQL keys constants
 
@@ -98,8 +104,12 @@ export const PRE_ORDER_CSV_TO_PRISMA_INVENTORY_MAP = {
   'Material Number': 'materialNumber',
   'Material Type': 'materialType',
   'Material Color': 'materialColor',
-  QTY: 'quantity',
-  'PO No': 'poNumber',
+  'Production QTY': 'quantity',
+  'PO Number': 'poNumber',
+  // Shipped: 'shipped',
+  // 'Available Stock': 'availableStock',
+  // 'Container No': 'containerNumber',
+  // ETA: 'eta',
 };
 
 export const IMPORT_PRE_ORDER_NUMERIC_FIELDS = [

@@ -20,9 +20,16 @@ import {
   PRE_ORDER_CSV_FILE_COLUMNS,
   PRE_ORDER_CSV_FILE_REQUIRED_COLUMNS,
   PRE_ORDER_CSV_TO_PRISMA_INVENTORY_MAP,
+  PRE_ORDER_DATE_FIELDS,
   PRE_ORDER_PREVIEW_NUMERIC_FIELDS,
 } from 'src/constants/csv';
 import { normalizeKey } from 'src/lib/stringUtils';
+import { formatDateToYMD } from 'src/lib/dateHelper';
+import {
+  normalizeDate,
+  normalizeNumber,
+  normalizeString,
+} from 'src/lib/csv.utils';
 
 @Injectable()
 export class PreOrdersService {
@@ -48,7 +55,7 @@ export class PreOrdersService {
       counts: {
         inProduction: 0,
         dispatched: 0,
-        remaining: savedPreOrder.totalQuantity,
+        remaining: savedPreOrder.quantity,
       },
     };
   }
@@ -100,7 +107,7 @@ export class PreOrdersService {
   ): Promise<ProductionBatch> {
     const preOrder = await this.preOrderRepository.findOne({
       where: { id: preOrderId },
-      select: ['id', 'totalQuantity'],
+      select: ['id', 'quantity'],
     });
 
     if (!preOrder) {
@@ -155,10 +162,10 @@ export class PreOrdersService {
     // Get pre-order total quantity to calculate remaining
     const preOrder = await this.preOrderRepository.findOne({
       where: { id: preOrderId },
-      select: ['totalQuantity'],
+      select: ['quantity'],
     });
 
-    const remaining = (preOrder?.totalQuantity || 0) - inProduction;
+    const remaining = (preOrder?.quantity || 0) - inProduction;
 
     return {
       inProduction,

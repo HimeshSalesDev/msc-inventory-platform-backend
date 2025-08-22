@@ -27,7 +27,7 @@ export class PreOrder {
 
   @ApiProperty({ description: 'Total quantity ordered', example: 100 })
   @Column({ type: 'int', unsigned: true })
-  totalQuantity: number;
+  quantity: number;
 
   @ApiProperty({ description: 'User who created the order' })
   @Column({ name: 'created_by' })
@@ -49,38 +49,34 @@ export class PreOrder {
   poNumber?: string;
 
   @ApiProperty({
-    description:
-      'Length measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    description: 'Length measurement ',
     example: 123.456,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  length?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  length?: string;
 
   @ApiProperty({
-    description:
-      'Width measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    description: 'Width measurement ',
     example: 45.789,
     required: false,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  width?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  width?: string;
 
   @ApiProperty({
-    description:
-      'Radius measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    description: 'Radius measurement ',
     example: 67.321,
     required: false,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  radius?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  radius?: string;
 
   @ApiProperty({
-    description:
-      'Skirt measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    description: 'Skirt measurement ',
     example: 89.123,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  skirt?: number;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  skirt?: string;
 
   @ApiProperty({
     description: 'Taper specification',
@@ -91,12 +87,11 @@ export class PreOrder {
   taper?: string;
 
   @ApiProperty({
-    description:
-      'Foam density (max 6 digits total, with 3 decimal places, e.g. 999.999)',
+    description: 'Foam density ',
     example: 25.123,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  foamDensity?: number;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  foamDensity?: string;
 
   @ApiProperty({
     description: 'Strip insert specification',

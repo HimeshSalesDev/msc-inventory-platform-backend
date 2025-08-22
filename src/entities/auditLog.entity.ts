@@ -41,8 +41,8 @@ export class AuditLog {
   userId: string | null;
 
   @Index()
-  @Column({ type: 'enum', enum: AuditLogType })
-  type: AuditLogType;
+  @Column({ type: 'varchar' })
+  type: string;
 
   @Column({ type: 'text' })
   description: string;

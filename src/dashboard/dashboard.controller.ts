@@ -235,7 +235,7 @@ export class DashboardController {
         type: 'object',
         properties: {
           sku: { type: 'string' },
-          totalQuantity: { type: 'number' },
+          quantity: { type: 'number' },
         },
       },
     },
