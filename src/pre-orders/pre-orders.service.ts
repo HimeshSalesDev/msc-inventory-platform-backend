@@ -20,16 +20,9 @@ import {
   PRE_ORDER_CSV_FILE_COLUMNS,
   PRE_ORDER_CSV_FILE_REQUIRED_COLUMNS,
   PRE_ORDER_CSV_TO_PRISMA_INVENTORY_MAP,
-  PRE_ORDER_DATE_FIELDS,
   PRE_ORDER_PREVIEW_NUMERIC_FIELDS,
 } from 'src/constants/csv';
 import { normalizeKey } from 'src/lib/stringUtils';
-import { formatDateToYMD } from 'src/lib/dateHelper';
-import {
-  normalizeDate,
-  normalizeNumber,
-  normalizeString,
-} from 'src/lib/csv.utils';
 
 @Injectable()
 export class PreOrdersService {
@@ -248,18 +241,6 @@ export class PreOrdersService {
               }
             }
 
-            // === DATE FORMATTING ===
-            // for (const field of INBOUND_DATE_FIELDS) {
-            //   const actualKey = Object.keys(row).find(
-            //     (col) => normalizeKey(col) === normalizeKey(field),
-            //   );
-
-            //   if (actualKey && row[actualKey]) {
-            //     const formatted = formatDateToYMD(row[actualKey]);
-            //     row[actualKey] = formatted ?? null;
-            //   }
-            // }
-
             if (errors.length > 0) {
               validationErrors.push({ row: index + 1, errors });
             }
@@ -325,8 +306,28 @@ export class PreOrdersService {
           mappedData[entityKey] = value;
         }
 
-        const inbound = this.preOrderRepository.create(mappedData);
-        const result = await this.preOrderRepository.save(inbound);
+        const data: PreOrder = this.preOrderRepository.create(
+          mappedData as PreOrder,
+        );
+        const result = await this.preOrderRepository.save(data);
+
+        // Insert into ProductionBatch
+        const batches: ProductionBatch[] = [];
+
+        // First batch: QTY always goes into production
+        if (mappedData.quantity && result.id) {
+          batches.push(
+            this.productionBatchRepository.create({
+              preOrderId: result.id,
+              quantityInProduction: mappedData.quantity,
+              movedBy: req?.user?.id,
+            }),
+          );
+        }
+
+        if (batches.length > 0) {
+          await this.productionBatchRepository.save(batches);
+        }
 
         successfulImports.push(result);
       } catch (error) {
@@ -345,25 +346,6 @@ export class PreOrdersService {
         });
       }
     }
-
-    // ✅ Emit audit logs for each successfully imported inbound
-    // if (req?.user?.id) {
-    //   const requestContext = {
-    //     userId: req?.user.id,
-    //     userName: req?.user.fullName,
-    //     ipAddress: req?.ip,
-    //     userAgent: req?.get('User-Agent'),
-    //     controllerPath: req.route?.path || req.originalUrl,
-    //   };
-
-    //   for (const inboundData of successfulImports) {
-    //     this.auditEventService.emitInboundCreated(
-    //       requestContext,
-    //       inboundData,
-    //       inboundData.id,
-    //     );
-    //   }
-    // }
 
     return {
       success: true,

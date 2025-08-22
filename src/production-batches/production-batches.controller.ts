@@ -1,4 +1,13 @@
-import { Controller, Get, Param, HttpStatus, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  HttpStatus,
+  UseGuards,
+  Post,
+  Body,
+  Request,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -12,6 +21,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { UserRole } from 'src/enums/roles.enum';
 import { Roles } from 'src/auth/decorators/roles.decorator';
+import { MoveToShippedDto } from './dto/production-batch.dto';
 
 @ApiTags('Production Batches')
 @Controller('production-batches')
@@ -70,5 +80,29 @@ export class ProductionBatchesController {
   })
   async findOne(@Param('id') id: string) {
     return this.productionBatchesService.findOne(id);
+  }
+
+  @Post(':id/move-to-shipped')
+  @Roles(UserRole.INBOUND_MANAGER)
+  @ApiOperation({ summary: 'Move a production batch to inbound' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Production batch successfully moved to inbound',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input (e.g. non-numeric or negative quantity)',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Production batch not found',
+  })
+  async moveToInboundShipped(
+    @Param('id') id: string,
+    @Body() dto: MoveToShippedDto,
+    @Request() req: Request,
+  ) {
+    console.log({ id, dto });
+    return this.productionBatchesService.moveToShipped(id, dto, req);
   }
 }

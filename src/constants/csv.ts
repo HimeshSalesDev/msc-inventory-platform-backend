@@ -49,13 +49,7 @@ export const LOCATION_CSV_PREVIEW_NUMERIC_FIELDS = ['QTY'];
 
 export const PRE_ORDER_CSV_FILE_REQUIRED_COLUMNS = ['SKU', 'Production QTY'];
 
-export const PRE_ORDER_PREVIEW_NUMERIC_FIELDS = [
-  'Length',
-  'Width',
-  'Foam Density',
-  'Skirt',
-  'QTY',
-];
+export const PRE_ORDER_PREVIEW_NUMERIC_FIELDS = ['Production QTY'];
 
 export const PRE_ORDER_CSV_FILE_COLUMNS = [
   'SKU',
@@ -112,14 +106,7 @@ export const PRE_ORDER_CSV_TO_PRISMA_INVENTORY_MAP = {
   // ETA: 'eta',
 };
 
-export const IMPORT_PRE_ORDER_NUMERIC_FIELDS = [
-  'length',
-  'foamDensity',
-  'skirt',
-  'quantity',
-  'width',
-  'radius',
-];
+export const IMPORT_PRE_ORDER_NUMERIC_FIELDS = ['quantity'];
 
 export const LOCATION_CSV_FILE_COLUMNS = ['SKU', 'BIN', 'Location', 'QTY'];
 
