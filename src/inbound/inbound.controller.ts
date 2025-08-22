@@ -391,4 +391,36 @@ export class InboundController {
   ) {
     return this.inboundService.updateByContainerNumber(dto, req);
   }
+
+  @Get('shipped-after-production')
+  @Roles(UserRole.ADMIN, UserRole.INBOUND_MANAGER)
+  @ApiOperation({ summary: 'Get all inbound items with optional filtering' })
+  @ApiOkResponse({
+    type: [Inbound],
+    description: 'List of inbound items',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin or Inbound Manager role required',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Failed to fetch Inbound',
+  })
+  async findShippedAfterProduction(
+    @Query() queryDto: QueryInboundDto,
+  ): Promise<{ items: Inbound[] }> {
+    try {
+      const items =
+        await this.inboundService.findShippedAfterProduction(queryDto);
+
+      return { items };
+    } catch {
+      // Throw generic internal server error for unexpected exceptions
+      throw new HttpException(
+        'Failed to fetch inventory item due to server error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }
