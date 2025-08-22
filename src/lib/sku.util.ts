@@ -15,12 +15,12 @@ export type TransformCode = 'F' | 'X' | 'S' | 'E' | 'N';
 export type ColorCode = 1104 | 1239 | 1244 | 3132 | 3218 | 3203 | 3221;
 
 export interface ParsedSKU {
-  length?: number;
-  width?: number;
-  radius?: number;
-  skirtLength?: number;
+  length?: string;
+  width?: string;
+  radius?: string;
+  skirtLength?: string;
   taper?: string | null; // like `"5"-4"`
-  foam?: number | null; // like "1.5"
+  foam?: string | null; // like "1.5"
   colorCode?: ColorCode;
   colorName?: ColorType | null;
   description?: string;
@@ -187,15 +187,15 @@ function parseSKU(sku: string): ParsedSKU | null {
     // Parse dimensions A and B as length and width
     const dimensionsArray = reverseTransformedString(parts[0]);
     if (dimensionsArray.length) {
-      result.length = dimensionsArray[0];
-      result.width = dimensionsArray[1] ?? null;
+      result.length = String(dimensionsArray[0] || '');
+      result.width = dimensionsArray[1] ? String(dimensionsArray[1]) : null;
     }
 
     // Parse dimension C and skirt as radius and skirtLength
     const dimCAndSkirt = parseDimCAndSkirt(parts[1]);
     if (dimCAndSkirt) {
-      result.radius = dimCAndSkirt.dimC;
-      result.skirtLength = dimCAndSkirt.skirtLength;
+      result.radius = String(dimCAndSkirt.dimC || '');
+      result.skirtLength = String(dimCAndSkirt.skirtLength || '');
     }
 
     // Parse taper and foam codes
@@ -211,7 +211,7 @@ function parseSKU(sku: string): ParsedSKU | null {
     }
 
     if (foamValue) {
-      result.foam = parseFloat(foamValue);
+      result.foam = foamValue;
     }
 
     // Parse color code
