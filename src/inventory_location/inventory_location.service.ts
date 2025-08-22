@@ -20,12 +20,7 @@ import {
   LOCATION_CSV_VALIDATION_REQUIRED_FIELDS,
   LOCATION_IMPORT_NUMERIC_FIELDS,
 } from 'src/constants/csv';
-import { Inventory } from 'src/entities/inventory.entity';
-import { InventoryLocation } from 'src/entities/inventory_location.entity';
-import {
-  InventoryMovement,
-  InventoryMovementTypeEnums,
-} from 'src/entities/inventory_movements.entity';
+
 import { InventoryReference } from 'src/entities/inventory_reference.entity';
 import { parseSKU, validateSKU } from 'src/lib/sku.util';
 import { normalizeKey } from 'src/lib/stringUtils';
@@ -42,6 +37,12 @@ import {
   RemoveQuantityDto,
   RemoveQuantityResponseDto,
 } from './dto/remove-quantity.dto';
+import { InventoryLocation } from 'src/entities/inventory_location.entity';
+import { Inventory } from 'src/entities/inventory.entity';
+import {
+  InventoryMovement,
+  InventoryMovementTypeEnums,
+} from 'src/entities/inventory_movements.entity';
 
 type TotalQuantityResult = {
   total: string | null;
@@ -740,6 +741,7 @@ export class InventoryLocationService {
       }
 
       const productInfo = parseSKU(sku);
+
       inventory = queryRunner.manager.create(Inventory, {
         sku,
         quantity: '0',
@@ -827,7 +829,6 @@ export class InventoryLocationService {
         isNewLocation = true;
       }
 
-      // Create inventory movement record for each location
       const inventoryMovement = queryRunner.manager.create(InventoryMovement, {
         sku,
         type: InventoryMovementTypeEnums.IN,
