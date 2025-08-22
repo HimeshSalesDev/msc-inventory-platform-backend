@@ -109,12 +109,7 @@ export class InboundController {
   ): Promise<Inbound> {
     try {
       // Validate required fields
-      if (
-        !createInboundDto.sku ||
-        !createInboundDto.length ||
-        !createInboundDto.skirt ||
-        !createInboundDto.foamDensity
-      ) {
+      if (!createInboundDto.sku) {
         throw new BadRequestException('Required fields are missing.');
       }
 

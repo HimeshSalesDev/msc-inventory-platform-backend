@@ -1,6 +1,5 @@
 import {
   Injectable,
-  ConflictException,
   NotFoundException,
   BadRequestException,
   Logger,
@@ -79,16 +78,6 @@ export class InboundService {
   }
 
   async create(createDto: CreateInboundDto, req: any): Promise<Inbound> {
-    const existing = await this.inboundRepo.findOne({
-      where: { sku: createDto.sku },
-    });
-
-    if (existing) {
-      throw new ConflictException(
-        `Inbound record with SKU "${createDto.sku}" already exists.`,
-      );
-    }
-
     const record = this.inboundRepo.create({
       ...createDto,
       etd: createDto.etd ? new Date(createDto.etd) : null,

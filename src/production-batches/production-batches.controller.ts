@@ -102,7 +102,6 @@ export class ProductionBatchesController {
     @Body() dto: MoveToShippedDto,
     @Request() req: Request,
   ) {
-    console.log({ id, dto });
     return this.productionBatchesService.moveToShipped(id, dto, req);
   }
 }
