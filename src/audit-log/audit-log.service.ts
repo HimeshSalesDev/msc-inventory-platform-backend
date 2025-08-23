@@ -159,7 +159,7 @@ export class AuditLogService {
     queryBuilder: SelectQueryBuilder<AuditLog>,
     filters: {
       userId?: string;
-      type?: AuditLogType;
+      type?: string;
       entityName?: string;
       entityId?: string;
       startDate?: string;

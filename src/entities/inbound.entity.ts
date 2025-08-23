@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  DeleteDateColumn,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -83,38 +84,34 @@ export class Inbound {
   vendorDescription?: string;
 
   @ApiProperty({
-    description:
-      'Length measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
-    example: 123.456,
+    description: 'Length measurement ',
+    example: '123.456',
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  length?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  length?: string;
 
   @ApiProperty({
-    description:
-      'Width measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
-    example: 45.789,
+    description: 'Width measurement ',
+    example: '45.789',
     required: false,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  width?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  width?: string;
 
   @ApiProperty({
-    description:
-      'Radius measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
-    example: 67.321,
+    description: 'Radius measurement ',
+    example: '67.321',
     required: false,
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  radius?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  radius?: string;
 
   @ApiProperty({
-    description:
-      'Skirt measurement (max 6 digits total, with 3 decimal places, e.g. 999.999)',
-    example: 89.123,
+    description: 'Skirt measurement ',
+    example: '89.123',
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  skirt?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  skirt?: string;
 
   @ApiProperty({
     description: 'Taper specification',
@@ -125,12 +122,11 @@ export class Inbound {
   taper?: string;
 
   @ApiProperty({
-    description:
-      'Foam density (max 6 digits total, with 3 decimal places, e.g. 999.999)',
-    example: 25.123,
+    description: 'Foam density ',
+    example: '25.123',
   })
-  @Column({ type: 'decimal', precision: 6, scale: 3, nullable: true })
-  foamDensity?: number;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  foamDensity?: string;
 
   @ApiProperty({
     description: 'Strip insert specification',
@@ -190,6 +186,14 @@ export class Inbound {
   @Column({ type: 'bigint', nullable: true, default: '0' })
   preBookedQuantity?: string;
 
+  @Column({
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    name: 'production_batch_id',
+  })
+  productionBatchId?: string;
+
   @ApiProperty({
     description: 'Date when the record was created',
     example: '2024-01-15T10:30:00Z',
@@ -203,4 +207,7 @@ export class Inbound {
   })
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt: Date;
 }

@@ -22,8 +22,8 @@ export class QueryAuditLogsDto {
     description: 'Filter by audit log type',
   })
   @IsOptional()
-  @IsEnum(AuditLogType)
-  type?: AuditLogType;
+  @IsString()
+  type?: string;
 
   @ApiPropertyOptional({ description: 'Filter by entity name' })
   @IsOptional()

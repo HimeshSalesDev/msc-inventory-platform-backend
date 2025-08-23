@@ -12,9 +12,9 @@ export class CreateAuditLogDto {
   @IsUUID()
   userId?: string;
 
-  @ApiProperty({ enum: AuditLogType, description: 'Type of audit log' })
-  @IsEnum(AuditLogType)
-  type: AuditLogType;
+  @ApiProperty({ description: 'Type of audit log' })
+  @IsString()
+  type: string;
 
   @ApiProperty({ description: 'Description of the action' })
   @IsString()
@@ -56,8 +56,8 @@ export class AuditLogResponseDto {
   @ApiPropertyOptional()
   userId?: string;
 
-  @ApiProperty({ enum: AuditLogType })
-  type: AuditLogType;
+  @ApiProperty()
+  type: string;
 
   @ApiProperty()
   description: string;
