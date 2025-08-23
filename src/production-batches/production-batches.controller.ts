@@ -7,6 +7,7 @@ import {
   Post,
   Body,
   Request,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,6 +23,7 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { UserRole } from 'src/enums/roles.enum';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { MoveToShippedDto } from './dto/production-batch.dto';
+import { PreOrdersQueryDto } from 'src/pre-orders/dto/pre-orders-query.dto';
 
 @ApiTags('Production Batches')
 @Controller('production-batches')
@@ -40,8 +42,8 @@ export class ProductionBatchesController {
     description: 'List of all production batches with remaining quantities',
     type: [ProductionBatchResponseDto],
   })
-  async findAll() {
-    return this.productionBatchesService.findAll();
+  async findAll(@Query() { status }: PreOrdersQueryDto) {
+    return this.productionBatchesService.findAll(status);
   }
 
   @Get('order/:orderId')

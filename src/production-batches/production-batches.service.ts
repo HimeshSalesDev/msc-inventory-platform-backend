@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   Injectable,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -29,11 +28,19 @@ export class ProductionBatchesService {
     private auditEventService: AuditEventService,
   ) {}
 
-  async findAll(): Promise<ProductionBatchResponseDto[]> {
-    const batches = await this.productionBatchRepository.find({
-      relations: ['preOrder'],
-      order: { movedAt: 'DESC' },
-    });
+  async findAll(
+    status?: PreOrderStatusEnums,
+  ): Promise<ProductionBatchResponseDto[]> {
+    const query = this.productionBatchRepository
+      .createQueryBuilder('batch')
+      .leftJoinAndSelect('batch.preOrder', 'preOrder')
+      .orderBy('batch.movedAt', 'DESC');
+
+    if (status) {
+      query.andWhere('preOrder.status = :status', { status });
+    }
+
+    const batches = await query.getMany();
 
     return Promise.all(
       batches.map(async (batch) => {
