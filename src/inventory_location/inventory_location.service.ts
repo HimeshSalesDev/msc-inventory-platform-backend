@@ -23,7 +23,7 @@ import {
 
 import { InventoryReference } from 'src/entities/inventory_reference.entity';
 import { parseSKU, validateSKU } from 'src/lib/sku.util';
-import { normalizeKey } from 'src/lib/stringUtils';
+import { findActualCsvKey, normalizeKey } from 'src/lib/stringUtils';
 import { CreateInventoryLocationDto } from './dto/create-inventory-location.dto';
 import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
 import { ImportCSVLocationsDto } from './dto/import-csv-location.dto';
@@ -445,14 +445,24 @@ export class InventoryLocationService {
           }
 
           const data = results.data as any[];
+
+          // Get actual CSV headers as they appear in the file
+          const csvHeaders = Object.keys(data[0] || {}).filter(
+            (col) => col.trim() !== '',
+          );
+
+          // Create mapping of normalized keys to actual CSV headers
+          const actualHeaderMap = new Map<string, string>();
+          csvHeaders.forEach((header) => {
+            actualHeaderMap.set(normalizeKey(header), header);
+          });
+
           // Validate required columns
-          const actualColumns = Object.keys(data[0] || {})
-            .filter((col) => col.trim() !== '')
-            .filter((col) =>
-              LOCATION_CSV_FILE_COLUMNS.some(
-                (allowedCol) => normalizeKey(allowedCol) === normalizeKey(col),
-              ),
-            );
+          const actualColumns = csvHeaders.filter((col) =>
+            LOCATION_CSV_FILE_COLUMNS.some(
+              (allowedCol) => normalizeKey(allowedCol) === normalizeKey(col),
+            ),
+          );
 
           const normalizedActual = actualColumns.map(normalizeKey);
 
@@ -480,9 +490,7 @@ export class InventoryLocationService {
 
               // Validate required fields
               for (const field of LOCATION_CSV_VALIDATION_REQUIRED_FIELDS) {
-                const actualKey = Object.keys(row).find(
-                  (col) => normalizeKey(col) === normalizeKey(field),
-                );
+                const actualKey = findActualCsvKey(row, field);
 
                 let value = actualKey ? row[actualKey] : undefined;
                 if (field === 'Location' && !actualKey) {
@@ -497,11 +505,11 @@ export class InventoryLocationService {
 
               // Validate numeric fields
               for (const field of LOCATION_CSV_PREVIEW_NUMERIC_FIELDS) {
-                const actualKey = Object.keys(row).find(
-                  (col) => normalizeKey(col) === normalizeKey(field),
-                );
+                const actualKey = findActualCsvKey(row, field);
                 const value = actualKey ? row[actualKey] || '0' : '0';
-                row[actualKey] = value;
+                if (actualKey) {
+                  row[actualKey] = value;
+                }
                 if (value && isNaN(parseInt(value))) {
                   errors.push(`${field} must be a valid number`);
                 }
@@ -528,6 +536,7 @@ export class InventoryLocationService {
                 ...cleanedRow,
                 _rowIndex: index + 1,
                 _hasErrors: errors.length > 0,
+                _actualHeaders: actualHeaderMap, // Store the mapping for import
               };
             },
           );
@@ -536,16 +545,10 @@ export class InventoryLocationService {
             data: validatedData,
             totalRows: data.length,
             validationErrors,
-            columns: Object.keys(validatedData[0] || {})
-              .filter((col) => col.trim() !== '')
-              .filter((col) =>
-                LOCATION_CSV_FILE_COLUMNS.some(
-                  (allowedCol) =>
-                    normalizeKey(allowedCol) === normalizeKey(col),
-                ),
-              ),
+            columns: actualColumns, // These are the actual CSV headers as they appear in file
             filename,
             hasErrors: validationErrors.length > 0,
+            actualHeaderMap: Object.fromEntries(actualHeaderMap), // Send mapping to frontend
           });
         },
       });
@@ -688,10 +691,13 @@ export class InventoryLocationService {
   private mapCsvRowToDto(row: any): any {
     const mappedData: any = {};
 
-    for (const [csvKey, prismaKey] of Object.entries(
+    // Use the mapping logic to handle case-insensitive header matching
+    for (const [expectedCsvKey, prismaKey] of Object.entries(
       LOCATION_CSV_TO_SQL_KEY_MAP,
     )) {
-      let value = row[csvKey];
+      // Find the actual key in the row that matches the expected CSV key
+      const actualCsvKey = findActualCsvKey(row, expectedCsvKey);
+      let value = actualCsvKey ? row[actualCsvKey] : undefined;
 
       // Convert numeric strings to number values
       const numberKeys = Object.values(LOCATION_CSV_TO_SQL_KEY_MAP).filter(

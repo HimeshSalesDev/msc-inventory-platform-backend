@@ -13,7 +13,7 @@ import { CreateInboundDto } from './dto/create-inbound.dto';
 import { UpdateInboundDto } from './dto/update-inbound.dto';
 import { QueryInboundDto } from './dto/query-inbound.dto';
 
-import { normalizeKey } from 'src/lib/stringUtils';
+import { findActualCsvKey, normalizeKey } from 'src/lib/stringUtils';
 import {
   IMPORT_INBOUND_NUMERIC_FIELDS,
   INBOUND_CSV_FILE_COLUMNS,
@@ -249,7 +249,17 @@ export class InboundService {
           }
 
           const data = results.data as any[];
-          const actualColumns = Object.keys(data[0] || {}).filter((col) =>
+
+          // Get actual CSV headers as they appear in the file
+          const csvHeaders = Object.keys(data[0] || {});
+
+          // Create mapping of normalized keys to actual CSV headers
+          const actualHeaderMap = new Map<string, string>();
+          csvHeaders.forEach((header) => {
+            actualHeaderMap.set(normalizeKey(header), header);
+          });
+
+          const actualColumns = csvHeaders.filter((col) =>
             INBOUND_CSV_FILE_COLUMNS.some(
               (allowedCol) => normalizeKey(allowedCol) === normalizeKey(col),
             ),
@@ -257,9 +267,7 @@ export class InboundService {
 
           const missingColumns = INBOUND_CSV_FILE_REQUIRED_COLUMNS.filter(
             (requiredCol) =>
-              !actualColumns
-                .map(normalizeKey)
-                .includes(normalizeKey(requiredCol)),
+              !csvHeaders.map(normalizeKey).includes(normalizeKey(requiredCol)),
           );
 
           if (missingColumns.length > 0) {
@@ -279,9 +287,7 @@ export class InboundService {
 
             // Required field validation
             for (const field of INBOUND_CSV_FILE_REQUIRED_COLUMNS) {
-              const actualKey = Object.keys(row).find(
-                (col) => normalizeKey(col) === normalizeKey(field),
-              );
+              const actualKey = findActualCsvKey(row, field);
               const value = actualKey ? row[actualKey] : undefined;
               if (!value?.toString().trim()) {
                 errors.push(`${field} is required`);
@@ -290,9 +296,7 @@ export class InboundService {
 
             // Numeric field validation
             for (const field of PREVIEW_NUMERIC_FIELDS) {
-              const actualKey = Object.keys(row).find(
-                (col) => normalizeKey(col) === normalizeKey(field),
-              );
+              const actualKey = findActualCsvKey(row, field);
               const value = actualKey ? row[actualKey] : undefined;
 
               if (
@@ -308,9 +312,7 @@ export class InboundService {
 
             // === DATE FORMATTING ===
             for (const field of INBOUND_DATE_FIELDS) {
-              const actualKey = Object.keys(row).find(
-                (col) => normalizeKey(col) === normalizeKey(field),
-              );
+              const actualKey = findActualCsvKey(row, field);
 
               if (actualKey) {
                 const formatted = row[actualKey]
@@ -323,6 +325,7 @@ export class InboundService {
             if (errors.length > 0) {
               validationErrors.push({ row: index + 1, errors });
             }
+
             const cleanedRow = Object.fromEntries(
               Object.entries(row)
                 .filter(([key]) => key.trim() !== '')
@@ -338,6 +341,7 @@ export class InboundService {
               ...cleanedRow,
               _rowIndex: index + 1,
               _hasErrors: errors.length > 0,
+              _actualHeaders: actualHeaderMap, // Store the mapping for import
             };
           });
 
@@ -345,9 +349,10 @@ export class InboundService {
             data: validatedData,
             totalRows: data.length,
             validationErrors,
-            columns: actualColumns,
+            columns: actualColumns, // These are the actual CSV headers as they appear in file
             filename,
             hasErrors: validationErrors.length > 0,
+            actualHeaderMap: Object.fromEntries(actualHeaderMap), // Send mapping to frontend
           });
         },
       });
@@ -375,10 +380,14 @@ export class InboundService {
       try {
         const mappedData: any = {};
 
-        for (const [csvKey, entityKey] of Object.entries(
+        // Use the mapping logic to handle case-insensitive header matching
+        for (const [expectedCsvKey, entityKey] of Object.entries(
           INBOUND_CSV_TO_PRISMA_INVENTORY_MAP,
         )) {
-          let value = row[csvKey];
+          // Find the actual key in the row that matches the expected CSV key
+          const actualCsvKey = findActualCsvKey(row, expectedCsvKey);
+          let value = actualCsvKey ? row[actualCsvKey] : undefined;
+
           if (IMPORT_INBOUND_NUMERIC_FIELDS.includes(entityKey)) {
             value = value ? parseFloat(value) : null;
           }
@@ -434,5 +443,49 @@ export class InboundService {
       failures: failedImports,
       importedItems: successfulImports,
     };
+  }
+
+  async findShippedAfterProduction(
+    queryDto: QueryInboundDto,
+  ): Promise<Inbound[]> {
+    const {
+      poNumber,
+      vendorDescription,
+      containerNumber,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC',
+      onlyOffloaded,
+    } = queryDto;
+
+    const qb = this.inboundRepo.createQueryBuilder('inbound');
+
+    qb.andWhere('inbound.productionBatchId IS NOT NULL');
+
+    if (poNumber) {
+      qb.andWhere('inbound.poNumber LIKE :poNumber', {
+        poNumber: `%${poNumber}%`,
+      });
+    }
+
+    if (containerNumber) {
+      qb.andWhere('inbound.containerNumber = :containerNumber', {
+        containerNumber,
+      });
+    }
+
+    if (vendorDescription) {
+      qb.andWhere('inbound.vendorName LIKE :vendorName', {
+        vendorName: `%${vendorDescription}%`,
+      });
+    }
+
+    if (onlyOffloaded === true) {
+      qb.andWhere('inbound.offloadedDate IS NOT NULL');
+    } else if (onlyOffloaded === false) {
+      qb.andWhere('inbound.offloadedDate IS NULL');
+    }
+
+    qb.orderBy(`inbound.${sortBy}`, sortOrder);
+    return await qb.getMany();
   }
 }
