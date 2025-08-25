@@ -68,6 +68,7 @@ export class WebhooksLogsService {
   async markAsError(logId: string, errorMessage: string): Promise<WebhookLog> {
     return this.updateById(logId, {
       status: WebHookStatusType.ERROR,
+      response: { errorMessage: errorMessage },
       description: `Error: ${errorMessage}`,
     });
   }

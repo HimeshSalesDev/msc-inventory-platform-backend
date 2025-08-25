@@ -24,6 +24,7 @@ import {
   ApiNotFoundResponse,
   ApiInternalServerErrorResponse,
   ApiParam,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 
@@ -43,8 +44,17 @@ import {
 import { Public } from 'src/auth/decorators/public.decorator';
 import { OrderConfirmationDto } from './dto/order-confirmation.dto';
 import { OrderConfirmationResponseDto } from './dto/order-confirmation-response.dto';
+import { OrderUpdateDto, OrderUpdateResponseDto } from './dto/order-update.dto';
+import {
+  OrderUpdateApiBadRequestResponse,
+  OrderUpdateApiBody,
+  OrderUpdateApiInternalServerErrorResponse,
+  OrderUpdateApiNotFoundResponse,
+  OrderUpdateApiOkResponse,
+  OrderUpdateApiOperation,
+} from './order-update.docs';
 
-@ApiTags('inventory')
+@ApiTags('Inventory')
 @Controller('inventory')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
@@ -284,5 +294,20 @@ export class InventoryController {
       orderConfirmationDto,
       req,
     );
+  }
+
+  @Post('order-update')
+  @Public()
+  @OrderUpdateApiOperation
+  @OrderUpdateApiBody
+  @OrderUpdateApiOkResponse
+  @OrderUpdateApiBadRequestResponse
+  @OrderUpdateApiNotFoundResponse
+  @OrderUpdateApiInternalServerErrorResponse
+  async orderUpdate(
+    @Body() orderUpdateDto: OrderUpdateDto,
+    @Request() req: Request,
+  ): Promise<OrderUpdateResponseDto> {
+    return await this.inventoryService.orderUpdate(orderUpdateDto, req);
   }
 }
