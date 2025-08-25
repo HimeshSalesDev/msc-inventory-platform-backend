@@ -47,8 +47,8 @@ import { InventoryLocationService } from './inventory_location.service';
 
 @ApiTags('Inventory Locations')
 @Controller('inventory-locations')
-// @ApiBearerAuth()
-// @UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class InventoryLocationController {
   constructor(
     private readonly inventoryLocationService: InventoryLocationService,
