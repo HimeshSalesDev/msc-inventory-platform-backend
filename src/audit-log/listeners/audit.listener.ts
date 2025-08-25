@@ -132,6 +132,7 @@ export class AuditListener {
       previousData &&
       !updatedData &&
       (type === AuditLogType.DELETE_INVENTORY ||
+        type === AuditLogType.DELETE_USER ||
         type === AuditLogType.DELETE_INBOUND)
     ) {
       await this.saveAuditLog({
