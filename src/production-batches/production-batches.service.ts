@@ -189,7 +189,6 @@ export class ProductionBatchesService {
       materialType: productionBatch.preOrder.materialType,
       materialColor: productionBatch.preOrder.materialColor,
 
-      preBookedQuantity: '0',
       etd: null,
       shipped: 'shipped',
       offloadedDate: null,

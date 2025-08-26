@@ -24,7 +24,10 @@ import {
 import { InventoryReference } from 'src/entities/inventory_reference.entity';
 import { parseSKU, validateSKU } from 'src/lib/sku.util';
 import { findActualCsvKey, normalizeKey } from 'src/lib/stringUtils';
-import { CreateInventoryLocationDto } from './dto/create-inventory-location.dto';
+import {
+  CreateInventoryLocationDto,
+  CreateScannerInventoryLocationDto,
+} from './dto/create-inventory-location.dto';
 import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
 import { ImportCSVLocationsDto } from './dto/import-csv-location.dto';
 import {
@@ -43,6 +46,8 @@ import {
   InventoryMovement,
   InventoryMovementTypeEnums,
 } from 'src/entities/inventory_movements.entity';
+import { Inbound } from 'src/entities/inbound.entity';
+import { InboundPreOrder } from 'src/entities/inbound-preorder.entity';
 
 type TotalQuantityResult = {
   total: string | null;
@@ -77,6 +82,12 @@ export class InventoryLocationService {
     private readonly inventoryReference: Repository<InventoryReference>,
     private readonly dataSource: DataSource,
     private auditEventService: AuditEventService,
+
+    @InjectRepository(Inbound)
+    private readonly inboundReference: Repository<Inbound>,
+
+    @InjectRepository(InventoryReference)
+    private readonly inboundPreOrderReference: Repository<InboundPreOrder>,
   ) {}
 
   async create(
@@ -1177,4 +1188,308 @@ export class InventoryLocationService {
 
     return defaultValue;
   };
+
+  async createFromScanner(
+    createDto: CreateScannerInventoryLocationDto,
+    req: any,
+  ): Promise<InventoryLocationResponseDto> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const result = await this.createInventoryLocation(
+        queryRunner,
+        createDto,
+        req,
+      );
+      await queryRunner.commitTransaction();
+      return result;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `Failed to create inventory location: ${error.message}`,
+        error.stack,
+      );
+
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        'Failed to create inventory location',
+      );
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  private async createInventoryLocation(
+    queryRunner: QueryRunner,
+    createDto: CreateInventoryLocationDto,
+    req: any,
+  ): Promise<InventoryLocationResponseDto> {
+    const { sku, binNumber, location, quantity, containerNumber } = createDto;
+
+    let isNewInventory = false;
+    let isNewLocation = false;
+    let originalInventoryData: Inventory = null;
+    let originalLocationData: InventoryLocation = null;
+    let preOrderRecord: InboundPreOrder = null;
+
+    // Container number is required - find matching inbound records (can be multiple)
+    const inboundRecords = await queryRunner.manager.find(Inbound, {
+      where: {
+        containerNumber,
+        sku,
+        offloadedDate: null,
+      },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    if (!inboundRecords || inboundRecords.length === 0) {
+      throw new NotFoundException(
+        `No valid inbound record found for container ${containerNumber} and SKU ${sku}. ` +
+          `Either the container/SKU combination doesn't exist or the container has already been offloaded.`,
+      );
+    }
+
+    // Distribute scanned qty across multiple inbound records
+    const addQuantity = BigInt(quantity);
+    let remainingToAllocate = addQuantity;
+
+    for (const record of inboundRecords) {
+      const currentScanned = BigInt(record.scannedQuantity || '0');
+      const maxQty = BigInt(record.quantity || '0');
+      const available = maxQty - currentScanned;
+
+      if (available <= 0n) continue; // already full
+
+      const allocate =
+        remainingToAllocate <= available ? remainingToAllocate : available;
+
+      if (allocate > 0n) {
+        await queryRunner.manager.update(Inbound, record.id, {
+          scannedQuantity: (currentScanned + allocate).toString(),
+        });
+        remainingToAllocate -= allocate;
+      }
+
+      if (remainingToAllocate === 0n) break;
+    }
+
+    if (remainingToAllocate > 0n) {
+      throw new BadRequestException(
+        `Scanned quantity (${(addQuantity - remainingToAllocate).toString()}) would exceed total inbound quantity for container ${containerNumber} and SKU ${sku}`,
+      );
+    }
+
+    // Check for pre-orders
+    preOrderRecord = await queryRunner.manager.findOne(InboundPreOrder, {
+      where: { sku },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    // Find or create inventory with lock
+    let inventory = await queryRunner.manager.findOne(Inventory, {
+      where: { sku },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    if (!inventory) {
+      if (!validateSKU(sku)) {
+        throw new BadRequestException('Invalid SKU format');
+      }
+
+      const productInfo = parseSKU(sku);
+      inventory = queryRunner.manager.create(Inventory, {
+        sku,
+        quantity: '0',
+        inHandQuantity: '0',
+        allocatedQuantity: '0',
+        vendorDescription: productInfo.description || '',
+        length: productInfo.length,
+        skirt: productInfo.skirtLength,
+        foamDensity: productInfo.foam,
+        width: productInfo.width,
+        radius: productInfo.radius,
+        taper: productInfo.taper,
+        materialNumber: productInfo.colorCode
+          ? productInfo.colorCode.toString()
+          : null,
+        materialColor: productInfo.colorName,
+      });
+      inventory = await queryRunner.manager.save(Inventory, inventory);
+      isNewInventory = true;
+    } else {
+      originalInventoryData = { ...inventory };
+    }
+
+    // Check if location already exists for this inventory and bin
+    const existingLocation = await queryRunner.manager.findOne(
+      InventoryLocation,
+      {
+        where: {
+          inventoryId: inventory.id,
+          binNumber: binNumber,
+          location,
+        },
+        lock: { mode: 'pessimistic_write' },
+      },
+    );
+
+    let inventoryLocation: InventoryLocation;
+
+    if (existingLocation) {
+      originalLocationData = { ...existingLocation };
+
+      const oldQuantity = BigInt(existingLocation.quantity);
+      const newQuantity = oldQuantity + addQuantity;
+
+      await queryRunner.manager.update(InventoryLocation, existingLocation.id, {
+        location,
+        quantity: newQuantity.toString(),
+      });
+
+      inventoryLocation = await queryRunner.manager.findOne(InventoryLocation, {
+        where: { id: existingLocation.id },
+      });
+    } else {
+      inventoryLocation = queryRunner.manager.create(InventoryLocation, {
+        inventoryId: inventory.id,
+        binNumber: binNumber,
+        location,
+        quantity,
+      });
+      inventoryLocation = await queryRunner.manager.save(
+        InventoryLocation,
+        inventoryLocation,
+      );
+      isNewLocation = true;
+    }
+
+    // Calculate total quantity across all locations for this inventory
+    const totalQuantity =
+      await this.calculateTotalQuantityForInventoryWithQueryRunner(
+        queryRunner,
+        inventory.id,
+      );
+
+    // Handle pre-orders
+    let newInHandQuantity: bigint;
+    let newAllocatedQuantity: bigint;
+
+    if (
+      preOrderRecord &&
+      BigInt(preOrderRecord.preBookedQuantity || '0') > 0n
+    ) {
+      const currentAllocatedQuantity = BigInt(
+        inventory.allocatedQuantity || '0',
+      );
+      const preBookedQuantity = BigInt(preOrderRecord.preBookedQuantity || '0');
+
+      const allocateToOrders =
+        addQuantity <= preBookedQuantity ? addQuantity : preBookedQuantity;
+      const remainingQuantity = addQuantity - allocateToOrders;
+
+      newAllocatedQuantity = currentAllocatedQuantity + allocateToOrders;
+      newInHandQuantity =
+        BigInt(inventory.inHandQuantity || '0') + remainingQuantity;
+
+      if (allocateToOrders > 0n) {
+        const newPreBookedQuantity = preBookedQuantity - allocateToOrders;
+        await queryRunner.manager.update(InboundPreOrder, preOrderRecord.id, {
+          preBookedQuantity: newPreBookedQuantity.toString(),
+        });
+      }
+    } else {
+      newAllocatedQuantity = BigInt(inventory.allocatedQuantity || '0');
+      newInHandQuantity = BigInt(inventory.inHandQuantity || '0') + addQuantity;
+    }
+
+    await queryRunner.manager.update(Inventory, inventory.id, {
+      quantity: totalQuantity,
+      inHandQuantity: newInHandQuantity.toString(),
+      allocatedQuantity: newAllocatedQuantity.toString(),
+    });
+
+    // Create inventory movement record
+    const inventoryMovement = queryRunner.manager.create(InventoryMovement, {
+      sku,
+      type: InventoryMovementTypeEnums.IN,
+      quantity: parseInt(quantity, 10),
+      binNumber,
+      location,
+      userId: req?.user?.id || null,
+      reason: `Container scan: ${containerNumber}`,
+    });
+
+    await queryRunner.manager.save(InventoryMovement, inventoryMovement);
+
+    // Get updated inventory for audit
+    const updatedInventory = await queryRunner.manager.findOne(Inventory, {
+      where: { id: inventory.id },
+    });
+
+    // Audit logging
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+
+      try {
+        if (isNewLocation) {
+          this.auditEventService.emitInventoryLocationCreated(
+            requestContext,
+            inventoryLocation,
+            inventoryLocation.id,
+          );
+        } else {
+          this.auditEventService.emitInventoryLocationUpdated(
+            requestContext,
+            originalLocationData,
+            inventoryLocation,
+            inventoryLocation.id,
+          );
+        }
+
+        if (isNewInventory) {
+          this.auditEventService.emitInventoryCreated(
+            requestContext,
+            updatedInventory,
+            inventory.id,
+          );
+        } else if (
+          originalInventoryData.quantity !== updatedInventory.quantity ||
+          originalInventoryData.inHandQuantity !==
+            updatedInventory.inHandQuantity ||
+          originalInventoryData.allocatedQuantity !==
+            updatedInventory.allocatedQuantity
+        ) {
+          this.auditEventService.emitInventoryUpdated(
+            requestContext,
+            originalInventoryData,
+            updatedInventory,
+            inventory.id,
+          );
+        }
+      } catch (auditError) {
+        this.logger.error('Error creating audit logs:', auditError);
+      }
+    }
+
+    return InventoryLocationResponseDto.fromEntity(
+      inventoryLocation,
+      totalQuantity,
+      sku,
+    );
+  }
 }
