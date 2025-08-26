@@ -488,4 +488,17 @@ export class InboundService {
     qb.orderBy(`inbound.${sortBy}`, sortOrder);
     return await qb.getMany();
   }
+
+  async findUniquePendingContainerNumbers(): Promise<string[]> {
+    const result: { containerNumber: string }[] = await this.inboundRepo
+      .createQueryBuilder('inbound')
+      .select('DISTINCT inbound.containerNumber', 'containerNumber')
+      .where('inbound.offloadedDate IS NULL')
+      .andWhere('inbound.containerNumber IS NOT NULL')
+      .andWhere("TRIM(inbound.containerNumber) <> ''") // excludes empty strings
+      .orderBy('inbound.containerNumber', 'ASC')
+      .getRawMany();
+
+    return result.map(({ containerNumber }) => containerNumber);
+  }
 }
