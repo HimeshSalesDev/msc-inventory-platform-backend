@@ -423,4 +423,18 @@ export class InboundController {
       );
     }
   }
+
+  @Get('container-numbers/pending-offload')
+  @Roles(UserRole.ADMIN, UserRole.INBOUND_MANAGER, UserRole.MOBILE_APP)
+  @ApiOperation({
+    summary: 'Get unique container numbers with no offload date',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of unique container numbers that are pending offload',
+    type: [String],
+  })
+  async getPendingContainerNumbers(): Promise<string[]> {
+    return this.inboundService.findUniquePendingContainerNumbers();
+  }
 }
