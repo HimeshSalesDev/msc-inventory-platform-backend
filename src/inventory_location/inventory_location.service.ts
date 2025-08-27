@@ -1235,47 +1235,101 @@ export class InventoryLocationService {
   ): Promise<InventoryLocationResponseDto> {
     const { sku, binNumber, location, quantity, containerNumber } = createDto;
 
+    if (
+      !containerNumber?.trim() ||
+      !sku?.trim() ||
+      !quantity ||
+      BigInt(quantity) <= 0n ||
+      !binNumber?.trim() ||
+      !location?.trim()
+    ) {
+      throw new BadRequestException('Bad request');
+    }
+
     let isNewInventory = false;
     let isNewLocation = false;
     let originalInventoryData: Inventory = null;
     let originalLocationData: InventoryLocation = null;
     let preOrderRecord: InboundPreOrder = null;
+    let fullyScannedInboundRecords: Inbound[] = [];
+    let preOrderAllocationAmount = 0n;
 
-    // Container number is required - find matching inbound records (can be multiple)
+    // Container number is required
     const inboundRecords = await queryRunner.manager.find(Inbound, {
       where: {
-        containerNumber,
-        sku,
+        containerNumber: containerNumber.trim(),
+        sku: sku.trim(),
         offloadedDate: null,
       },
       lock: { mode: 'pessimistic_write' },
+      order: { createdAt: 'ASC' },
     });
 
     if (!inboundRecords || inboundRecords.length === 0) {
       throw new NotFoundException(
-        `No valid inbound record found for container ${containerNumber} and SKU ${sku}. ` +
-          `Either the container/SKU combination doesn't exist or the container has already been offloaded.`,
+        `No valid inbound records found for container ${containerNumber} and SKU ${sku}. ` +
+          `Either the container/SKU combination doesn't exist or all records have already been offloaded.`,
+      );
+    }
+
+    // Calculate total available capacity across all inbound records
+    let totalAvailableCapacity = 0n;
+    for (const record of inboundRecords) {
+      const currentScanned = BigInt(record.scannedQuantity || '0');
+      const maxQty = BigInt(record.quantity || '0');
+      const available = maxQty - currentScanned;
+      if (available > 0n) {
+        totalAvailableCapacity += available;
+      }
+    }
+
+    const addQuantity = BigInt(quantity);
+    if (addQuantity > totalAvailableCapacity) {
+      throw new BadRequestException(
+        `Requested quantity (${addQuantity.toString()}) exceeds total available capacity (${totalAvailableCapacity.toString()}) ` +
+          `for container ${containerNumber} and SKU ${sku}`,
       );
     }
 
     // Distribute scanned qty across multiple inbound records
-    const addQuantity = BigInt(quantity);
     let remainingToAllocate = addQuantity;
+    const processedRecords: {
+      record: Inbound;
+      allocatedAmount: bigint;
+      wasFullyScanned: boolean;
+    }[] = [];
 
     for (const record of inboundRecords) {
       const currentScanned = BigInt(record.scannedQuantity || '0');
       const maxQty = BigInt(record.quantity || '0');
       const available = maxQty - currentScanned;
 
-      if (available <= 0n) continue; // already full
+      if (available <= 0n) continue;
 
       const allocate =
         remainingToAllocate <= available ? remainingToAllocate : available;
 
       if (allocate > 0n) {
+        const newScannedQuantity = currentScanned + allocate;
+
         await queryRunner.manager.update(Inbound, record.id, {
-          scannedQuantity: (currentScanned + allocate).toString(),
+          scannedQuantity: newScannedQuantity.toString(),
         });
+
+        const wasFullyScanned = newScannedQuantity >= maxQty;
+        processedRecords.push({
+          record: { ...record, scannedQuantity: newScannedQuantity.toString() },
+          allocatedAmount: allocate,
+          wasFullyScanned,
+        });
+
+        if (wasFullyScanned) {
+          fullyScannedInboundRecords.push({
+            ...record,
+            scannedQuantity: newScannedQuantity.toString(),
+          });
+        }
+
         remainingToAllocate -= allocate;
       }
 
@@ -1283,31 +1337,39 @@ export class InventoryLocationService {
     }
 
     if (remainingToAllocate > 0n) {
-      throw new BadRequestException(
-        `Scanned quantity (${(addQuantity - remainingToAllocate).toString()}) would exceed total inbound quantity for container ${containerNumber} and SKU ${sku}`,
+      throw new InternalServerErrorException(
+        `Failed to allocate ${remainingToAllocate.toString()} units after processing all inbound records`,
       );
+    }
+
+    // Update offloaded date for fully scanned records
+    const currentDate = new Date();
+    for (const fullyScannedRecord of fullyScannedInboundRecords) {
+      await queryRunner.manager.update(Inbound, fullyScannedRecord.id, {
+        offloadedDate: currentDate,
+      });
     }
 
     // Check for pre-orders
     preOrderRecord = await queryRunner.manager.findOne(InboundPreOrder, {
-      where: { sku },
+      where: { sku: sku.trim() },
       lock: { mode: 'pessimistic_write' },
     });
 
     // Find or create inventory with lock
     let inventory = await queryRunner.manager.findOne(Inventory, {
-      where: { sku },
+      where: { sku: sku.trim() },
       lock: { mode: 'pessimistic_write' },
     });
 
     if (!inventory) {
       if (!validateSKU(sku)) {
-        throw new BadRequestException('Invalid SKU format');
+        throw new BadRequestException(`Invalid SKU format: ${sku}`);
       }
 
       const productInfo = parseSKU(sku);
       inventory = queryRunner.manager.create(Inventory, {
-        sku,
+        sku: sku.trim(),
         quantity: '0',
         inHandQuantity: '0',
         allocatedQuantity: '0',
@@ -1335,8 +1397,8 @@ export class InventoryLocationService {
       {
         where: {
           inventoryId: inventory.id,
-          binNumber: binNumber,
-          location,
+          binNumber: binNumber.trim(),
+          location: location.trim(),
         },
         lock: { mode: 'pessimistic_write' },
       },
@@ -1351,7 +1413,7 @@ export class InventoryLocationService {
       const newQuantity = oldQuantity + addQuantity;
 
       await queryRunner.manager.update(InventoryLocation, existingLocation.id, {
-        location,
+        location: location.trim(),
         quantity: newQuantity.toString(),
       });
 
@@ -1361,9 +1423,9 @@ export class InventoryLocationService {
     } else {
       inventoryLocation = queryRunner.manager.create(InventoryLocation, {
         inventoryId: inventory.id,
-        binNumber: binNumber,
-        location,
-        quantity,
+        binNumber: binNumber.trim(),
+        location: location.trim(),
+        quantity: quantity,
       });
       inventoryLocation = await queryRunner.manager.save(
         InventoryLocation,
@@ -1379,7 +1441,7 @@ export class InventoryLocationService {
         inventory.id,
       );
 
-    // Handle pre-orders
+    // Handle pre-orders allocation
     let newInHandQuantity: bigint;
     let newAllocatedQuantity: bigint;
 
@@ -1395,6 +1457,7 @@ export class InventoryLocationService {
       const allocateToOrders =
         addQuantity <= preBookedQuantity ? addQuantity : preBookedQuantity;
       const remainingQuantity = addQuantity - allocateToOrders;
+      preOrderAllocationAmount = allocateToOrders; // Track for logging
 
       newAllocatedQuantity = currentAllocatedQuantity + allocateToOrders;
       newInHandQuantity =
@@ -1411,6 +1474,7 @@ export class InventoryLocationService {
       newInHandQuantity = BigInt(inventory.inHandQuantity || '0') + addQuantity;
     }
 
+    // Update inventory quantities
     await queryRunner.manager.update(Inventory, inventory.id, {
       quantity: totalQuantity,
       inHandQuantity: newInHandQuantity.toString(),
@@ -1419,13 +1483,13 @@ export class InventoryLocationService {
 
     // Create inventory movement record
     const inventoryMovement = queryRunner.manager.create(InventoryMovement, {
-      sku,
+      sku: sku.trim(),
       type: InventoryMovementTypeEnums.IN,
       quantity: parseInt(quantity, 10),
-      binNumber,
-      location,
+      binNumber: binNumber.trim(),
+      location: location.trim(),
       userId: req?.user?.id || null,
-      reason: `Container scan: ${containerNumber}`,
+      reason: `Container scan: ${containerNumber.trim()}${preOrderAllocationAmount > 0n ? ` (${preOrderAllocationAmount.toString()} allocated to pre-orders)` : ''}`,
     });
 
     await queryRunner.manager.save(InventoryMovement, inventoryMovement);
@@ -1446,6 +1510,7 @@ export class InventoryLocationService {
       };
 
       try {
+        // Log inventory location operations
         if (isNewLocation) {
           this.auditEventService.emitInventoryLocationCreated(
             requestContext,
@@ -1461,6 +1526,7 @@ export class InventoryLocationService {
           );
         }
 
+        // Log inventory operations
         if (isNewInventory) {
           this.auditEventService.emitInventoryCreated(
             requestContext,
@@ -1481,6 +1547,55 @@ export class InventoryLocationService {
             inventory.id,
           );
         }
+
+        // Log inbound scanning operations for each processed record
+        for (const {
+          record,
+          allocatedAmount,
+          wasFullyScanned,
+        } of processedRecords) {
+          // You can create a custom audit event for inbound scanning
+          const inboundAuditData = {
+            inboundId: record.id,
+            containerNumber: containerNumber.trim(),
+            sku: sku.trim(),
+            scannedQuantity: allocatedAmount.toString(),
+            totalScannedQuantity: record.scannedQuantity,
+            maxQuantity: record.quantity,
+            wasFullyScanned,
+            offloadedDate: wasFullyScanned ? currentDate : null,
+          };
+
+          // Emit custom inbound scanning audit event
+          // this.auditEventService.emitInboundScanned(requestContext, inboundAuditData);
+        }
+
+        // Log pre-order allocation if any
+        if (preOrderAllocationAmount > 0n && preOrderRecord) {
+          const preOrderAuditData = {
+            sku: sku.trim(),
+            allocatedQuantity: preOrderAllocationAmount.toString(),
+            remainingPreBookedQuantity: preOrderRecord.preBookedQuantity,
+            containerNumber: containerNumber.trim(),
+          };
+
+          // Emit custom pre-order allocation audit event
+          // this.auditEventService.emitPreOrderAllocated(requestContext, preOrderAuditData);
+        }
+
+        // Log container offloading completion if any records were fully scanned
+        if (fullyScannedInboundRecords.length > 0) {
+          const offloadedAuditData = {
+            containerNumber: containerNumber.trim(),
+            sku: sku.trim(),
+            offloadedRecordIds: fullyScannedInboundRecords.map((r) => r.id),
+            offloadedDate: currentDate,
+            totalOffloadedRecords: fullyScannedInboundRecords.length,
+          };
+
+          // Emit custom container offloading audit event
+          // this.auditEventService.emitContainerOffloaded(requestContext, offloadedAuditData);
+        }
       } catch (auditError) {
         this.logger.error('Error creating audit logs:', auditError);
       }
@@ -1489,7 +1604,7 @@ export class InventoryLocationService {
     return InventoryLocationResponseDto.fromEntity(
       inventoryLocation,
       totalQuantity,
-      sku,
+      sku.trim(),
     );
   }
 }

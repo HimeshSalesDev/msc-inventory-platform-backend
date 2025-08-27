@@ -1,6 +1,15 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsOptional, IsString, IsIn, IsBoolean } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsOptional,
+  IsString,
+  IsIn,
+  IsBoolean,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
+import { InboundPreOrder } from 'src/entities/inbound-preorder.entity';
 
 export class QueryInboundDto {
   @ApiPropertyOptional({
@@ -63,4 +72,40 @@ export class QueryInboundDto {
   @IsString()
   @IsIn(['ASC', 'DESC'])
   sortOrder?: 'ASC' | 'DESC' = 'DESC';
+}
+
+export class QueryInboundPreOrdersDto {
+  @ApiPropertyOptional({ description: 'Filter by SKU' })
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiPropertyOptional({ description: 'Page number', default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @ApiPropertyOptional({ description: 'Items per page', default: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(10)
+  @Max(1000)
+  limit: number = 100;
+}
+
+export class PaginatedInboundPreOrderResponseDto {
+  @ApiProperty({ type: [InboundPreOrder] })
+  data: InboundPreOrder[];
+
+  @ApiProperty({ example: 1 })
+  page: number;
+
+  @ApiProperty({ example: 50 })
+  limit: number;
+
+  @ApiProperty({ example: 200 })
+  totalCount: number;
 }

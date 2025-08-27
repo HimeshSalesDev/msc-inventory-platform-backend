@@ -212,17 +212,17 @@ export class InventoryService {
   ): Promise<{ inventory: Inventory[]; inbound: Inbound[] }> {
     const webhookKey = this.configService.get<string>('WEBHOOK_KEY');
 
-    // if (!webhookKey) {
-    //   throw new Error('Web hook key not configured');
-    // }
+    if (!webhookKey) {
+      throw new Error('Web hook key not configured');
+    }
 
-    // const incomingKey = req?.headers['x-webhook-key'];
-    // if (!incomingKey) {
-    //   throw new UnauthorizedException('Missing X-Webhook-Key header');
-    // }
-    // if (incomingKey !== webhookKey) {
-    //   throw new UnauthorizedException('Not a valid key');
-    // }
+    const incomingKey = req?.headers['x-webhook-key'];
+    if (!incomingKey) {
+      throw new UnauthorizedException('Missing X-Webhook-Key header');
+    }
+    if (incomingKey !== webhookKey) {
+      throw new UnauthorizedException('Not a valid key');
+    }
 
     // Validate SKU input
     if (
@@ -531,13 +531,13 @@ export class InventoryService {
     let webhookLogId: string | null = null;
 
     try {
-      // if (!webhookKey) throw new Error('Web hook key not configured');
+      if (!webhookKey) throw new Error('Web hook key not configured');
 
-      // const incomingKey = req?.headers['x-webhook-key'];
-      // if (!incomingKey)
-      //   throw new UnauthorizedException('Missing X-Webhook-Key header');
-      // if (incomingKey !== webhookKey)
-      //   throw new UnauthorizedException('Not a valid key');
+      const incomingKey = req?.headers['x-webhook-key'];
+      if (!incomingKey)
+        throw new UnauthorizedException('Missing X-Webhook-Key header');
+      if (incomingKey !== webhookKey)
+        throw new UnauthorizedException('Not a valid key');
 
       const { updated, new: newOrder } = payload;
 

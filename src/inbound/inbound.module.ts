@@ -10,10 +10,11 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from 'src/users/users.module';
 import { AuditLogModule } from 'src/audit-log/audit-log.module';
+import { InboundPreOrder } from 'src/entities/inbound-preorder.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Inbound, Role]),
+    TypeOrmModule.forFeature([Inbound, Role, InboundPreOrder]),
     JwtConfigModule,
     ConfigModule,
     UsersModule,
