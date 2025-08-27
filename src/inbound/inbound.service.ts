@@ -112,7 +112,7 @@ export class InboundService {
       ).toISOString();
     }
 
-    const first = records[0];
+    const first = newRecords.length ? newRecords[0] : records[0];
 
     const containerDetails = {
       containerNumber,
