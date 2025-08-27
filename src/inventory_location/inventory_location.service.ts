@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as Papa from 'papaparse';
-import { DataSource, QueryRunner, Repository } from 'typeorm';
+import { DataSource, IsNull, QueryRunner, Repository } from 'typeorm';
 
 import { AuditEventService } from 'src/audit-log/audit-event.service';
 import {
@@ -1259,7 +1259,7 @@ export class InventoryLocationService {
       where: {
         containerNumber: containerNumber.trim(),
         sku: sku.trim(),
-        offloadedDate: null,
+        offloadedDate: IsNull(),
       },
       lock: { mode: 'pessimistic_write' },
       order: { createdAt: 'ASC' },
@@ -1554,47 +1554,47 @@ export class InventoryLocationService {
           allocatedAmount,
           wasFullyScanned,
         } of processedRecords) {
-          // You can create a custom audit event for inbound scanning
-          const inboundAuditData = {
-            inboundId: record.id,
-            containerNumber: containerNumber.trim(),
-            sku: sku.trim(),
-            scannedQuantity: allocatedAmount.toString(),
-            totalScannedQuantity: record.scannedQuantity,
-            maxQuantity: record.quantity,
-            wasFullyScanned,
-            offloadedDate: wasFullyScanned ? currentDate : null,
+          const existingData = {
+            scannedQuantity: (
+              parseFloat(record.scannedQuantity) -
+              parseFloat(allocatedAmount.toString())
+            ).toString(),
+            ...(wasFullyScanned ? { offloadedDate: null } : {}),
           };
 
-          // Emit custom inbound scanning audit event
-          // this.auditEventService.emitInboundScanned(requestContext, inboundAuditData);
+          const updatedData = {
+            scannedQuantity: record.scannedQuantity,
+            ...(wasFullyScanned ? { offloadedDate: currentDate } : {}),
+          };
+
+          // Emit  inbound scanning audit event
+          this.auditEventService.emitInboundUpdated(
+            requestContext,
+            existingData,
+            updatedData,
+            record.id,
+          );
         }
 
         // Log pre-order allocation if any
         if (preOrderAllocationAmount > 0n && preOrderRecord) {
-          const preOrderAuditData = {
-            sku: sku.trim(),
-            allocatedQuantity: preOrderAllocationAmount.toString(),
-            remainingPreBookedQuantity: preOrderRecord.preBookedQuantity,
-            containerNumber: containerNumber.trim(),
+          const existingData = {
+            preBookedQuantity: preOrderRecord.preBookedQuantity,
+          };
+          const updatedData = {
+            preBookedQuantity: (
+              parseFloat(preOrderRecord.preBookedQuantity) -
+              parseFloat(preOrderAllocationAmount.toString())
+            ).toString(),
           };
 
           // Emit custom pre-order allocation audit event
-          // this.auditEventService.emitPreOrderAllocated(requestContext, preOrderAuditData);
-        }
-
-        // Log container offloading completion if any records were fully scanned
-        if (fullyScannedInboundRecords.length > 0) {
-          const offloadedAuditData = {
-            containerNumber: containerNumber.trim(),
-            sku: sku.trim(),
-            offloadedRecordIds: fullyScannedInboundRecords.map((r) => r.id),
-            offloadedDate: currentDate,
-            totalOffloadedRecords: fullyScannedInboundRecords.length,
-          };
-
-          // Emit custom container offloading audit event
-          // this.auditEventService.emitContainerOffloaded(requestContext, offloadedAuditData);
+          this.auditEventService.emitInboundPreOrderUpdated(
+            requestContext,
+            existingData,
+            updatedData,
+            preOrderRecord.id,
+          );
         }
       } catch (auditError) {
         this.logger.error('Error creating audit logs:', auditError);

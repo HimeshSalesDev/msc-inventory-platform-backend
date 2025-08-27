@@ -396,3 +396,31 @@ export class InboundContainerUpdatedEvent extends AuditEvent {
     );
   }
 }
+
+export class InboundPreOrderUpdatedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    id: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.UPDATE_INBOUND_PRE_ORDER,
+      'inbound pre order',
+      id,
+      previousData,
+      updatedData,
+      'updated',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}
