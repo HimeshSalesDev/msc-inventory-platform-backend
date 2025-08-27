@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import * as Papa from 'papaparse';
 
 import { Inbound } from 'src/entities/inbound.entity';
@@ -215,7 +215,7 @@ export class InboundService {
     }
 
     const records = await this.inboundRepo.find({
-      where: { containerNumber, offloadedDate: null },
+      where: { containerNumber, offloadedDate: IsNull() },
     });
 
     if (!records.length) {
