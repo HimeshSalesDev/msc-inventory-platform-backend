@@ -11,7 +11,10 @@ import * as Papa from 'papaparse';
 import { Inbound } from 'src/entities/inbound.entity';
 import { CreateInboundDto } from './dto/create-inbound.dto';
 import { UpdateInboundDto } from './dto/update-inbound.dto';
-import { QueryInboundDto } from './dto/query-inbound.dto';
+import {
+  QueryInboundDto,
+  QueryInboundPreOrdersDto,
+} from './dto/query-inbound.dto';
 
 import { findActualCsvKey, normalizeKey } from 'src/lib/stringUtils';
 import {
@@ -25,6 +28,7 @@ import {
 import { formatDateToYMD } from 'src/lib/dateHelper';
 import { UpdateContainerFieldDto } from './dto/update-container-field.dto';
 import { AuditEventService } from 'src/audit-log/audit-event.service';
+import { InboundPreOrder } from 'src/entities/inbound-preorder.entity';
 
 @Injectable()
 export class InboundService {
@@ -33,8 +37,9 @@ export class InboundService {
   constructor(
     @InjectRepository(Inbound)
     private inboundRepo: Repository<Inbound>,
-
     private auditEventService: AuditEventService,
+    @InjectRepository(InboundPreOrder)
+    private inboundPreOrderRepo: Repository<InboundPreOrder>,
   ) {}
 
   async findAll(queryDto: QueryInboundDto): Promise<Inbound[]> {
@@ -75,6 +80,59 @@ export class InboundService {
 
     qb.orderBy(`inbound.${sortBy}`, sortOrder);
     return await qb.getMany();
+  }
+
+  async getByContainer(containerNumber: string) {
+    const records = await this.inboundRepo.find({
+      where: { containerNumber },
+      order: { createdAt: 'ASC' },
+    });
+
+    if (!records.length) {
+      throw new NotFoundException(
+        `No inbound records found for ${containerNumber}`,
+      );
+    }
+
+    // Split into new vs old
+    const newRecords = records.filter((r) => !r.offloadedDate);
+    const oldRecords = records.filter((r) => r.offloadedDate);
+
+    // Compute top-level container details
+    const totalQuantity = records.reduce(
+      (sum, r) => sum + (parseFloat(r.quantity) ?? 0),
+      0,
+    );
+
+    // Rule for container offloadedDate
+    let finalOffloadedDate: string | null = null;
+    if (newRecords.length === 0 && oldRecords.length > 0) {
+      finalOffloadedDate = new Date(
+        Math.max(...oldRecords.map((r) => new Date(r.offloadedDate).getTime())),
+      ).toISOString();
+    }
+
+    const first = records[0];
+
+    const containerDetails = {
+      containerNumber,
+      totalItems: records.length,
+      totalQuantity,
+      etd: first.etd,
+      eta: first.eta,
+      shipped: first.shipped,
+      offloadedDate: finalOffloadedDate,
+      createdAt: first.createdAt,
+      updatedAt: new Date(
+        Math.max(...records.map((r) => new Date(r.updatedAt).getTime())),
+      ).toISOString(),
+    };
+
+    return {
+      containerDetails,
+      newRecords,
+      oldRecords,
+    };
   }
 
   async create(createDto: CreateInboundDto, req: any): Promise<Inbound> {
@@ -156,7 +214,9 @@ export class InboundService {
       );
     }
 
-    const records = await this.inboundRepo.find({ where: { containerNumber } });
+    const records = await this.inboundRepo.find({
+      where: { containerNumber, offloadedDate: null },
+    });
 
     if (!records.length) {
       throw new NotFoundException(
@@ -181,6 +241,7 @@ export class InboundService {
           .update(Inbound)
           .set(updateData)
           .where('containerNumber = :containerNumber', { containerNumber })
+          .andWhere('offloadedDate IS NULL')
           .execute();
       },
     );
@@ -487,5 +548,37 @@ export class InboundService {
 
     qb.orderBy(`inbound.${sortBy}`, sortOrder);
     return await qb.getMany();
+  }
+
+  async findUniquePendingContainerNumbers(): Promise<string[]> {
+    const result: { containerNumber: string }[] = await this.inboundRepo
+      .createQueryBuilder('inbound')
+      .select('DISTINCT inbound.containerNumber', 'containerNumber')
+      .where('inbound.offloadedDate IS NULL')
+      .andWhere('inbound.containerNumber IS NOT NULL')
+      .andWhere("TRIM(inbound.containerNumber) <> ''") // excludes empty strings
+      .orderBy('inbound.containerNumber', 'ASC')
+      .getRawMany();
+
+    return result.map(({ containerNumber }) => containerNumber);
+  }
+
+  async findAllPreOrder(query: QueryInboundPreOrdersDto) {
+    const { page, limit, sku } = query;
+
+    const qb = this.inboundPreOrderRepo.createQueryBuilder('order');
+
+    if (sku) qb.andWhere('order.sku LIKE :sku', { sku: `%${sku}%` });
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [data, totalCount] = await qb.getManyAndCount();
+
+    return {
+      data,
+      page,
+      limit,
+      totalCount,
+    };
   }
 }

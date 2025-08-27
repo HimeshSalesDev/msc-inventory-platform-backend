@@ -177,14 +177,8 @@ export class Inbound {
   @Column({ type: 'bigint', nullable: true })
   quantity?: string; // Use string here to safely store bigints
 
-  @ApiProperty({
-    description:
-      'PreBooked quantity - amount reserved for orders but not yet in stock (supports very large values up to bigint limit)',
-    example: 250000,
-    required: false,
-  })
   @Column({ type: 'bigint', nullable: true, default: '0' })
-  preBookedQuantity?: string;
+  scannedQuantity?: string;
 
   @Column({
     type: 'varchar',

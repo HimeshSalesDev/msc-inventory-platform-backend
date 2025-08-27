@@ -27,6 +27,7 @@ import {
   ApiResponse,
   ApiBody,
   ApiConsumes,
+  getSchemaPath,
 } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -37,7 +38,11 @@ import { UserRole } from '../enums/roles.enum';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { InboundService } from './inbound.service';
 import { Inbound } from 'src/entities/inbound.entity';
-import { QueryInboundDto } from './dto/query-inbound.dto';
+import {
+  PaginatedInboundPreOrderResponseDto,
+  QueryInboundDto,
+  QueryInboundPreOrdersDto,
+} from './dto/query-inbound.dto';
 import { CreateInboundDto } from './dto/create-inbound.dto';
 import { UpdateInboundDto } from './dto/update-inbound.dto';
 import { UpdateContainerFieldDto } from './dto/update-container-field.dto';
@@ -79,6 +84,52 @@ export class InboundController {
       }
       throw new HttpException(
         'Failed to create inventory item',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('by-container')
+  @Roles(UserRole.ADMIN, UserRole.INBOUND_MANAGER)
+  @ApiOperation({
+    summary: 'Get inbound items grouped by offloadedDate for a container',
+  })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: {
+        newRecords: { type: 'array', items: { $ref: getSchemaPath(Inbound) } },
+        oldRecords: { type: 'array', items: { $ref: getSchemaPath(Inbound) } },
+      },
+    },
+    description:
+      'Inbound records grouped as new (not offloaded) and old (offloaded)',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin or Inbound Manager role required',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Failed to fetch inbound records',
+  })
+  async findByContainerGrouped(@Query() queryDto: QueryInboundDto): Promise<{
+    newRecords: Inbound[];
+    oldRecords: Inbound[];
+    containerDetails: any;
+  }> {
+    try {
+      const containerNumber = queryDto.containerNumber;
+      return await this.inboundService.getByContainer(containerNumber);
+    } catch (error) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new HttpException(
+        'Failed to fetch inbound records',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -422,5 +473,40 @@ export class InboundController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Get('container-numbers/pending-offload')
+  @Roles(UserRole.ADMIN, UserRole.INBOUND_MANAGER, UserRole.MOBILE_APP)
+  @ApiOperation({
+    summary: 'Get unique container numbers with no offload date',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of unique container numbers that are pending offload',
+    type: [String],
+  })
+  async getPendingContainerNumbers(): Promise<string[]> {
+    return this.inboundService.findUniquePendingContainerNumbers();
+  }
+
+  @Get('pre-order')
+  @Roles(UserRole.ADMIN, UserRole.INBOUND_MANAGER)
+  @ApiOperation({
+    summary: 'Get all inbound pre orders with pagination and filtering',
+  })
+  @ApiOkResponse({
+    type: PaginatedInboundPreOrderResponseDto,
+    description: 'Inbound pre orders orders retrieved successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin role required',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Failed to fetch records',
+  })
+  async findAllPreOrder(@Query() queryDto: QueryInboundPreOrdersDto) {
+    return await this.inboundService.findAllPreOrder(queryDto);
   }
 }

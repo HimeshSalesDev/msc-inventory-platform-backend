@@ -13,9 +13,11 @@ import { AuditLogModule } from 'src/audit-log/audit-log.module';
 import { WebhooksLogsModule } from 'src/webhooks-logs/webhooks-logs.module';
 import { Inbound } from 'src/entities/inbound.entity';
 
+import { InboundPreOrder } from 'src/entities/inbound-preorder.entity';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Inventory, Role, Inbound]),
+    TypeOrmModule.forFeature([Inventory, Role, Inbound, InboundPreOrder]),
     JwtConfigModule,
     ConfigModule,
     UsersModule,

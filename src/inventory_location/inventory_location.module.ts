@@ -10,6 +10,8 @@ import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from 'src/users/users.module';
 import { AuditLogModule } from 'src/audit-log/audit-log.module';
 import { InventoryReference } from 'src/entities/inventory_reference.entity';
+import { Inbound } from 'src/entities/inbound.entity';
+import { InboundPreOrder } from 'src/entities/inbound-preorder.entity';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { InventoryReference } from 'src/entities/inventory_reference.entity';
       InventoryReference,
       Inventory,
       Role,
+      Inbound,
+      InboundPreOrder,
     ]),
     JwtConfigModule,
     ConfigModule,
