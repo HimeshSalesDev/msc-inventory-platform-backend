@@ -132,6 +132,7 @@ export class AuditListener {
       previousData &&
       !updatedData &&
       (type === AuditLogType.DELETE_INVENTORY ||
+        type === AuditLogType.DELETE_USER ||
         type === AuditLogType.DELETE_INBOUND)
     ) {
       await this.saveAuditLog({
@@ -161,9 +162,6 @@ export class AuditListener {
   }): Promise<void> {
     try {
       await this.auditLogRepository.save(data);
-      this.logger.debug(
-        `Audit log saved for user ${data.userId}, type: ${data.type}`,
-      );
     } catch (error) {
       this.logger.error('Failed to save audit log:', error);
       throw error;

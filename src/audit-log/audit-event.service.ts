@@ -16,6 +16,7 @@ import {
   UserCreatedEvent,
   UserUpdatedEvent,
   UserDeletedEvent,
+  InboundPreOrderUpdatedEvent,
 } from './events/audit.events';
 import { AuditLogType } from 'src/entities/auditLog.entity';
 
@@ -301,6 +302,25 @@ export class AuditEventService {
       updatedData,
       containerNumber,
       message,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInboundPreOrderUpdated(
+    context: RequestContext,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    id: string,
+  ): void {
+    const event = new InboundPreOrderUpdatedEvent(
+      context.userId,
+      context.userName,
+      previousData,
+      updatedData,
+      id,
       context.ipAddress,
       context.userAgent,
       context.controllerPath,

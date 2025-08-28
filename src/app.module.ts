@@ -17,6 +17,8 @@ import { InventoryMovementsModule } from './inventory_movements/inventory_moveme
 import { WebhooksLogsModule } from './webhooks-logs/webhooks-logs.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CustomOrdersModule } from './custom_orders/custom_orders.module';
+import { PreOrdersModule } from './pre-orders/pre-orders.module';
+import { ProductionBatchesModule } from './production-batches/production-batches.module';
 
 @Module({
   imports: [
@@ -50,6 +52,8 @@ import { CustomOrdersModule } from './custom_orders/custom_orders.module';
     WebhooksLogsModule,
     DashboardModule,
     CustomOrdersModule,
+    PreOrdersModule,
+    ProductionBatchesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

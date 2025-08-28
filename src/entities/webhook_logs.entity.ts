@@ -19,6 +19,7 @@ export enum WebHookStatusType {
 export enum WebHookLogType {
   ORDER_CONFIRMATION = 'order_confirmation',
   INVENTORY_REFERENCE = 'inventory_reference',
+  ORDER_UPDATE = 'order_update',
 }
 
 @Entity('webhook_logs')
@@ -27,8 +28,8 @@ export class WebhookLog {
   id: string;
 
   @Index()
-  @Column({ type: 'enum', enum: WebHookLogType })
-  type: WebHookLogType;
+  @Column({ type: 'varchar', nullable: true })
+  type: string;
 
   @Index()
   @Column({

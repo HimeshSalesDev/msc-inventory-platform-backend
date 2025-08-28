@@ -32,7 +32,10 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { UserRole } from 'src/enums/roles.enum';
-import { CreateInventoryLocationDto } from './dto/create-inventory-location.dto';
+import {
+  CreateInventoryLocationDto,
+  CreateScannerInventoryLocationDto,
+} from './dto/create-inventory-location.dto';
 import { GetLocationByNumberOrSkuDto } from './dto/get-inventory.dto';
 import {
   FindBySkuOrNumberResponseDto,
@@ -56,6 +59,76 @@ export class InventoryLocationController {
 
   @Post()
   @Roles(UserRole.MOBILE_APP, UserRole.ADMIN, UserRole.INVENTORY_MANAGER)
+  @ApiOperation({
+    summary: 'Create or update inventory location from mobile scan in',
+    description: `
+      This endpoint handles mobile app barcode scanning workflow:
+      1. If SKU doesn't exist, creates new inventory record and location
+      2. If SKU exists but bin doesn't exist, creates new location
+      3. If both SKU and bin exist, updates existing location by adding quantities
+      4. Automatically recalculates total inventory quantity across all locations
+    `,
+  })
+  @ApiBody({
+    type: CreateScannerInventoryLocationDto,
+    description: 'Inventory location data from mobile scanning',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Inventory location created or updated successfully',
+    type: InventoryLocationResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'array', items: { type: 'string' } },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Conflict with existing data',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 409 },
+        message: {
+          type: 'string',
+          example: 'Bin number already exists for this inventory item',
+        },
+        error: { type: 'string', example: 'Conflict' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 500 },
+        message: { type: 'string', example: 'Internal server error' },
+      },
+    },
+  })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async create(
+    @Body() createInventoryLocationDto: CreateScannerInventoryLocationDto,
+    @Request() req: Request,
+  ) {
+    return await this.inventoryLocationService.createFromScanner(
+      createInventoryLocationDto,
+      req,
+    );
+  }
+
+  @Post('add')
+  @Roles(UserRole.ADMIN, UserRole.INVENTORY_MANAGER)
   @ApiOperation({
     summary: 'Create or update inventory location',
     description: `
@@ -114,7 +187,7 @@ export class InventoryLocationController {
     },
   })
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async create(
+  async addInventoryLocation(
     @Body() createInventoryLocationDto: CreateInventoryLocationDto,
     @Request() req: Request,
   ) {
@@ -599,7 +672,6 @@ export class InventoryLocationController {
 
     const csvContent = file.buffer.toString('utf-8');
     const filename = file.originalname;
-
     try {
       return await this.inventoryLocationService.previewCsv(
         csvContent,

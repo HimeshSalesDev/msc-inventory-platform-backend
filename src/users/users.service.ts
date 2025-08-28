@@ -69,10 +69,29 @@ export class UsersService {
   async create(createUserDto: CreateUserDto, req: any): Promise<User> {
     const { email, password, fullName, role } = createUserDto;
 
+    const trimmedEmail = email?.trim();
+    if (!trimmedEmail) {
+      throw new BadRequestException(`Email is required.`);
+    }
+
     // Check if user already exists
-    const existingUser = await this.findByEmail(email);
+    const existingUser = await this.usersRepository.findOne({
+      where: { email },
+      withDeleted: true,
+    });
+
     if (existingUser) {
-      throw new ConflictException(`User with email "${email}" already exists.`);
+      if (existingUser.deletedAt) {
+        // User exists but is soft-deleted
+        throw new ConflictException(
+          `An account with email "${email}" was previously deleted. Please contact administrator to restore the account or use a different email.`,
+        );
+      } else {
+        // User exists and is active
+        throw new ConflictException(
+          `User with email "${email}" already exists.`,
+        );
+      }
     }
 
     // Find role by name
@@ -137,7 +156,7 @@ export class UsersService {
     // Check email uniqueness if email is being updated
     if (email && email !== existingUser.email) {
       const emailExists = await this.usersRepository.findOne({
-        where: { email, id: { $ne: id } as any },
+        where: { email, id: Not(id) },
       });
 
       if (emailExists) {
@@ -197,6 +216,46 @@ export class UsersService {
     }
 
     return updatedUser;
+  }
+
+  async delete(id: string, req: any): Promise<{ message: string }> {
+    // Check if user exists (this will automatically exclude soft-deleted users)
+    const existingUser = await this.usersRepository.findOne({
+      where: { id },
+      relations: ['role'],
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException(`User with ID ${id} not found.`);
+    }
+
+    // Store user data for audit log before deletion
+    const userData = {
+      id: existingUser.id,
+      email: existingUser.email,
+      fullName: existingUser.fullName,
+      role: existingUser.role.name,
+    };
+
+    // Perform soft delete
+    await this.usersRepository.softDelete(id);
+
+    // Emit audit event
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+
+      this.auditEventService.emitIUserDeleted(requestContext, userData, id);
+    }
+
+    return {
+      message: `User "${existingUser.fullName}" has been successfully deleted.`,
+    };
   }
 
   private generateRandomPassword(length: number = 8): string {

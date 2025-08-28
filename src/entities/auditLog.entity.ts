@@ -14,21 +14,28 @@ import { User } from './user.entity';
 export enum AuditLogType {
   LOGIN = 'login',
   LOGOUT = 'logout',
+
   ADD_INVENTORY = 'add_inventory',
   UPDATE_INVENTORY = 'update_inventory',
   DELETE_INVENTORY = 'delete_inventory',
+
   CREATE_USER = 'create_user',
   UPDATE_USER = 'update_user',
   DELETE_USER = 'delete_user',
+
   ADD_INBOUND = 'add_inbound',
   UPDATE_INBOUND = 'update_inbound',
   DELETE_INBOUND = 'delete_inbound',
+
   ADD_INVENTORY_LOCATION = 'add_inventory_location',
   UPDATE_INVENTORY_LOCATION = 'update_inventory_location',
   DELETE_INVENTORY_LOCATION = 'delete_inventory_location',
+
   ADD_INVENTORY_REFERENCE = 'add_inventory_reference',
   UPDATE_INVENTORY_REFERENCE = 'update_inventory_reference',
   DELETE_INVENTORY_REFERENCE = 'delete_inventory_reference',
+
+  UPDATE_INBOUND_PRE_ORDER = 'update_inbound_pre_order',
 }
 
 @Entity('audit_log')
@@ -41,8 +48,8 @@ export class AuditLog {
   userId: string | null;
 
   @Index()
-  @Column({ type: 'enum', enum: AuditLogType })
-  type: AuditLogType;
+  @Column({ type: 'varchar' })
+  type: string;
 
   @Column({ type: 'text' })
   description: string;
