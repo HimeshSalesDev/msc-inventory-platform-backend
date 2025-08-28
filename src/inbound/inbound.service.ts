@@ -112,17 +112,17 @@ export class InboundService {
       ).toISOString();
     }
 
-    const first = newRecords.length ? newRecords[0] : records[0];
+    const first = newRecords.length ? newRecords[0] : null;
 
     const containerDetails = {
       containerNumber,
       totalItems: records.length,
       totalQuantity,
-      etd: first.etd,
-      eta: first.eta,
-      shipped: first.shipped,
+      etd: first?.etd || '',
+      eta: first?.eta || '',
+      shipped: first?.shipped || '',
       offloadedDate: finalOffloadedDate,
-      createdAt: first.createdAt,
+      createdAt: first?.createdAt || '',
       updatedAt: new Date(
         Math.max(...records.map((r) => new Date(r.updatedAt).getTime())),
       ).toISOString(),
