@@ -8,7 +8,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { UpdateInventoryDto } from './dto/update-inventory.dto';
+import {
+  UpdateInventoryDto,
+  UpdateInventoryQuantityDto,
+} from './dto/update-inventory.dto';
 import { QueryInventoryDto } from './dto/query-inventory.dto';
 
 import { Inventory } from 'src/entities/inventory.entity';
@@ -937,5 +940,46 @@ export class InventoryService {
       remainingQuantity: 0,
       data: null,
     };
+  }
+
+  async updateQuantity(
+    updateInventoryDto: UpdateInventoryQuantityDto,
+    req: any,
+  ) {
+    const { id, allocatedQuantity, inHandQuantity } = updateInventoryDto;
+
+    const existing = await this.inventoryRepository.findOne({ where: { id } });
+
+    if (!existing) {
+      throw new NotFoundException('Inventory item not found');
+    }
+
+    await this.inventoryRepository.update(id, {
+      allocatedQuantity: allocatedQuantity || null,
+      inHandQuantity: inHandQuantity || null,
+      updatedAt: new Date(),
+    });
+
+    const updatedInventory = await this.inventoryRepository.findOne({
+      where: { id },
+    });
+
+    // Log inventory update with before/after data
+    if (req?.user?.id) {
+      const requestContext = {
+        userId: req.user.id,
+        userName: req.user.fullName,
+        ipAddress: req?.ip,
+        userAgent: req?.get('User-Agent'),
+        controllerPath: req.route?.path || req.originalUrl,
+      };
+      this.auditEventService.emitInventoryQuantityUpdated(
+        requestContext,
+        existing,
+        updatedInventory,
+        id,
+      );
+    }
+    return updatedInventory;
   }
 }

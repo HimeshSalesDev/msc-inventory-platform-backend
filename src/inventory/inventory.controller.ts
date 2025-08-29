@@ -28,7 +28,10 @@ import {
 } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 
-import { UpdateInventoryDto } from './dto/update-inventory.dto';
+import {
+  UpdateInventoryDto,
+  UpdateInventoryQuantityDto,
+} from './dto/update-inventory.dto';
 import { QueryInventoryDto } from './dto/query-inventory.dto';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -309,5 +312,34 @@ export class InventoryController {
     @Request() req: Request,
   ): Promise<OrderUpdateResponseDto> {
     return await this.inventoryService.orderUpdate(orderUpdateDto, req);
+  }
+
+  @Put('override-quantity')
+  @Roles(UserRole.ADMIN)
+  async updateQuantity(
+    @Body() updateInventoryDto: UpdateInventoryQuantityDto,
+    @Request() req: Request,
+  ): Promise<Inventory> {
+    try {
+      if (!updateInventoryDto.id) {
+        throw new BadRequestException('Id is required');
+      }
+
+      return await this.inventoryService.updateQuantity(
+        updateInventoryDto,
+        req,
+      );
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new HttpException(
+        'Failed to update inventory item',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

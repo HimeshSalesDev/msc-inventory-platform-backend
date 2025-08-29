@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateInventoryDto {
@@ -57,4 +57,20 @@ export class UpdateInventoryDto {
   @IsString()
   @Length(0, 255)
   materialColor?: string;
+}
+
+export class UpdateInventoryQuantityDto {
+  @IsUUID()
+  @IsString()
+  id: string;
+
+  @Matches(/^\d+$/, { message: 'Booked Quantity must be a numeric string' })
+  @IsOptional()
+  @IsString()
+  allocatedQuantity?: string;
+
+  @Matches(/^\d+$/, { message: 'In hand Quantity must be a numeric string' })
+  @IsOptional()
+  @IsString()
+  inHandQuantity?: string;
 }

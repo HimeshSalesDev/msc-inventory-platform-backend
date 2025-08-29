@@ -424,3 +424,30 @@ export class InboundPreOrderUpdatedEvent extends AuditEvent {
     );
   }
 }
+export class InventoryOverRideQuantityUpdatedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    id: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.UPDATE_INVENTORY,
+      'inventory',
+      id,
+      previousData,
+      updatedData,
+      'manually override the quantity of ',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}
