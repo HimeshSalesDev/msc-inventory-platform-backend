@@ -18,6 +18,7 @@ import {
   UserDeletedEvent,
   InboundPreOrderUpdatedEvent,
   InventoryOverRideQuantityUpdatedEvent,
+  InventoryReferenceUpdatedEvent,
 } from './events/audit.events';
 import { AuditLogType } from 'src/entities/auditLog.entity';
 
@@ -341,6 +342,25 @@ export class AuditEventService {
       previousData,
       updatedData,
       inventoryId,
+      context.ipAddress,
+      context.userAgent,
+      context.controllerPath,
+    );
+    this.emitAuditEvent(event);
+  }
+
+  emitInventoryReferenceUpdated(
+    context: RequestContext,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    id: string,
+  ): void {
+    const event = new InventoryReferenceUpdatedEvent(
+      context.userId,
+      context.userName,
+      previousData,
+      updatedData,
+      id,
       context.ipAddress,
       context.userAgent,
       context.controllerPath,

@@ -451,3 +451,31 @@ export class InventoryOverRideQuantityUpdatedEvent extends AuditEvent {
     );
   }
 }
+
+export class InventoryReferenceUpdatedEvent extends AuditEvent {
+  constructor(
+    userId: string,
+    userName: string,
+    previousData: Record<string, any>,
+    updatedData: Record<string, any>,
+    id: string,
+    ipAddress?: string,
+    userAgent?: string,
+    controllerPath?: string,
+  ) {
+    super(
+      userId,
+      userName,
+      AuditLogType.UPDATE_INVENTORY_REFERENCE,
+      'inventory reference',
+      id,
+      previousData,
+      updatedData,
+      'updated',
+      ipAddress,
+      userAgent,
+      false,
+      controllerPath,
+    );
+  }
+}

@@ -18,6 +18,13 @@ export class InventoryReferenceResponseDto {
   sku: string;
 
   @ApiProperty({
+    example: 'lifter plate',
+    description: 'Add on',
+  })
+  @Expose()
+  addOn: string;
+
+  @ApiProperty({
     description: 'Date when the record was created',
     example: '2024-01-15T10:30:00Z',
   })
