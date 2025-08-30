@@ -1,3 +1,4 @@
+import { Optional } from '@nestjs/common';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString } from 'class-validator';
@@ -32,4 +33,12 @@ export class CreateInventoryReferenceDto {
   @IsNotEmpty()
   @Transform(({ value }: { value: string }) => value?.trim())
   number: string;
+
+  @ApiProperty({
+    description: 'Add Ons',
+    example: 'Heavy-duty lifter plate with reinforced steel',
+  })
+  @IsString()
+  @Optional()
+  addOn: string;
 }

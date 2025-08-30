@@ -67,4 +67,14 @@ export class InventoryReference {
     default: InventoryReferenceStatus.CREATED,
   })
   status: InventoryReferenceStatus;
+
+  @ApiProperty({
+    description: 'Add-on description or extra details',
+    example: 'Heavy-duty lifter plate with reinforced steel',
+  })
+  @Column({ type: 'text', nullable: true })
+  addOn: string;
+
+  @Column({ type: 'int', default: 1 })
+  quantity: number;
 }
