@@ -60,13 +60,13 @@ export class InventoryReferenceService {
         throw new Error('Web hook key not configured');
       }
 
-      // const incomingKey = req?.headers['x-webhook-key'];
-      // if (!incomingKey) {
-      //   throw new UnauthorizedException('Missing X-Webhook-Key header');
-      // }
-      // if (incomingKey !== webhookKey) {
-      //   throw new UnauthorizedException('Not a valid key');
-      // }
+      const incomingKey = req?.headers['x-webhook-key'];
+      if (!incomingKey) {
+        throw new UnauthorizedException('Missing X-Webhook-Key header');
+      }
+      if (incomingKey !== webhookKey) {
+        throw new UnauthorizedException('Not a valid key');
+      }
 
       const webhookLog = await this.webhookLogsService.create({
         type: WebHookLogType.INVENTORY_REFERENCE,
